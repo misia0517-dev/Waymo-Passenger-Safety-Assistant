@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Waymo One — Passenger Safety Assistant</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Google Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:18px;padding:24px 0;}
+
+/* PHONE */
+.phone{width:393px;height:852px;background:#1d2c4d;border-radius:50px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111,0 0 0 12px #2a2a2a,0 40px 100px rgba(0,0,0,.7);flex-shrink:0;}
+.screen{width:100%;height:100%;position:relative;overflow:hidden;}
+
+/* STATUS BAR */
+.status-bar{position:absolute;top:0;left:0;right:0;height:50px;z-index:100;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px;pointer-events:none;}
+.s-time{font-size:15px;font-weight:600;}
+.s-icons{font-size:12px;display:flex;align-items:center;gap:5px;}
+
+/* VIEWS */
+.view{position:absolute;inset:0;display:none;flex-direction:column;}
+.view.active{display:flex;}
+
+/* ═══════════ RIDE SCREEN ═══════════ */
+#ride{background:#1d2c4d;}
+#mapCanvas{position:absolute;top:0;left:0;width:393px;height:570px;}
+
+.map-ui{position:absolute;top:0;left:0;right:0;height:570px;pointer-events:none;z-index:10;}
+.map-top{padding:58px 16px 0;display:flex;align-items:center;gap:10px;pointer-events:all;}
+.map-icon-btn{width:40px;height:40px;background:rgba(26,44,78,.92);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.4);}
+.map-status-pill{flex:1;background:rgba(26,44,78,.92);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:9px 14px;display:flex;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,.4);}
+.live-dot{width:7px;height:7px;background:#34D058;border-radius:50%;animation:livepulse 2s ease-in-out infinite;flex-shrink:0;}
+@keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.pill-text{font-size:12.5px;font-weight:500;color:#e8eaf0;}
+
+.car-behavior{position:absolute;bottom:300px;left:14px;right:14px;background:rgba(26,44,78,.92);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:10px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 4px 16px rgba(0,0,0,.4);pointer-events:all;}
+.behavior-icon{font-size:20px;flex-shrink:0;}
+.behavior-main{font-size:13px;font-weight:600;color:#e8eaf0;}
+.behavior-sub{font-size:11px;color:#8899bb;margin-top:1px;}
+
+/* BOTTOM SHEET */
+.bottom-sheet{position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:24px 24px 0 0;padding:10px 20px 36px;box-shadow:0 -6px 30px rgba(0,0,0,.25);z-index:20;}
+.handle{width:36px;height:4px;background:#dadce0;border-radius:2px;margin:0 auto 12px;}
+
+/* Journey bar */
+.journey-bar{display:flex;align-items:center;margin-bottom:12px;}
+.jstep{display:flex;align-items:center;gap:4px;font-size:9.5px;font-weight:600;color:#9aa0a6;white-space:nowrap;}
+.jstep.done{color:#34A853;}
+.jstep.curr{color:#1A73E8;}
+.jdot{width:8px;height:8px;background:#dadce0;border-radius:50%;flex-shrink:0;}
+.jstep.done .jdot{background:#34A853;}
+.jstep.curr .jdot{background:#1A73E8;}
+.jline{flex:1;height:2px;background:#dadce0;margin:0 4px;}
+.jline.done{background:#34A853;}
+
+/* phase sections */
+.phase-section{display:none;}
+.phase-section.active{display:block;}
+
+/* trip row elements */
+.trip-row{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
+.trip-lbl{font-size:10px;color:#80868b;text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px;}
+.trip-name{font-size:18px;font-weight:700;color:#202124;}
+.trip-addr{font-size:12px;color:#5f6368;margin-top:2px;}
+.eta-chip{background:linear-gradient(135deg,#1A73E8,#00BFA5);border-radius:16px;padding:7px 13px;text-align:center;min-width:60px;}
+.eta-num{font-size:22px;font-weight:800;color:#fff;line-height:1;}
+.eta-lbl{font-size:10px;color:rgba(255,255,255,.85);}
+
+.progress-wrap{margin-bottom:12px;}
+.progress-track{height:4px;background:#f1f3f4;border-radius:2px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,#1A73E8,#00BFA5);border-radius:2px;transition:width .5s;}
+.progress-labels{display:flex;justify-content:space-between;margin-top:4px;}
+.prog-label{font-size:10px;color:#9aa0a6;}
+
+.divider{height:1px;background:#f1f3f4;margin:10px 0;}
+.section-label-row{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+.section-lbl{font-size:11px;font-weight:600;color:#5f6368;text-transform:uppercase;letter-spacing:.8px;}
+.new-badge{background:linear-gradient(135deg,#1A73E8,#00BFA5);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;}
+
+/* 3-button row */
+.sfbtns{display:flex;gap:7px;}
+.sfbtn{flex:1;border:1.5px solid;border-radius:14px;padding:10px 3px;cursor:pointer;background:#fff;display:flex;flex-direction:column;align-items:center;gap:4px;transition:all .14s;font-family:inherit;}
+.sfbtn:active{transform:scale(.94);}
+.sfbtn .ico{font-size:20px;}
+.sfbtn .lbl{font-size:10px;font-weight:600;text-align:center;line-height:1.3;}
+.sfd{border-color:#F9AB00;color:#F9AB00;}.sfd:hover{background:#FFF8E1;}
+.sfr{border-color:#1A73E8;color:#1A73E8;}.sfr:hover{background:#E8F0FE;}
+.sfi{border-color:#EA4335;color:#EA4335;}.sfi:hover{background:#FCE8E6;}
+
+/* ── WAITING PHASE ── */
+.car-card{background:#f8f9fa;border:1px solid #e8eaed;border-radius:16px;padding:13px 15px;display:flex;align-items:center;gap:13px;margin-bottom:11px;}
+.car-icon-big{width:50px;height:50px;background:linear-gradient(135deg,#1A73E8,#00BFA5);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:25px;flex-shrink:0;}
+.car-card-name{font-size:15px;font-weight:700;color:#202124;margin-bottom:2px;}
+.car-card-sub{font-size:11.5px;color:#5f6368;}
+.pickup-pill{background:#E8F0FE;border-radius:12px;padding:9px 13px;display:flex;align-items:center;gap:9px;margin-bottom:12px;}
+.pickup-dot{width:10px;height:10px;background:#1A73E8;border-radius:50%;flex-shrink:0;}
+.pickup-txt{font-size:12.5px;color:#1A73E8;font-weight:500;}
+.two-btns{display:flex;gap:8px;margin-bottom:10px;}
+.outline-btn{flex:1;background:#fff;border:1.5px solid #e8eaed;border-radius:12px;padding:10px 6px;font-size:13px;font-weight:600;color:#5f6368;cursor:pointer;font-family:inherit;text-align:center;transition:all .14s;}
+.outline-btn:hover{border-color:#1A73E8;color:#1A73E8;background:#E8F0FE;}
+.outline-btn.danger-outline{border-color:#EA4335;color:#EA4335;}.outline-btn.danger-outline:hover{background:#FCE8E6;}
+.primary-btn{width:100%;background:linear-gradient(135deg,#1A73E8,#00BFA5);border:none;border-radius:14px;padding:15px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .14s;}
+.primary-btn:hover{opacity:.9;}
+
+/* ── APPROACHING PHASE ── */
+.approach-header{background:linear-gradient(135deg,rgba(26,115,232,.07),rgba(0,191,165,.07));border:1px solid rgba(26,115,232,.2);border-radius:13px;padding:11px 13px;display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+.approach-title{font-size:14px;font-weight:700;color:#1A73E8;margin-bottom:1px;}
+.approach-sub{font-size:11.5px;color:#5f6368;}
+.two-col-btns{display:flex;gap:7px;margin-bottom:8px;}
+.col-btn{flex:1;border:1.5px solid;border-radius:13px;padding:11px 4px;cursor:pointer;background:#fff;display:flex;flex-direction:column;align-items:center;gap:5px;transition:all .14s;font-family:inherit;}
+.col-btn:active{transform:scale(.95);}
+.col-btn .ico{font-size:19px;}
+.col-btn .lbl{font-size:10px;font-weight:600;text-align:center;line-height:1.3;}
+.cb-blue{border-color:#1A73E8;color:#1A73E8;}.cb-blue:hover{background:#E8F0FE;}
+.cb-red{border-color:#EA4335;color:#EA4335;}.cb-red:hover{background:#FCE8E6;}
+.cb-gray{border-color:#80868b;color:#5f6368;}.cb-gray:hover{background:#f1f3f4;}
+.text-link{width:100%;background:transparent;border:none;padding:7px;font-size:12.5px;color:#80868b;cursor:pointer;font-family:inherit;text-decoration:underline;text-align:center;}
+
+/* ── ARRIVED PHASE ── */
+.arrived-banner{background:#E6F4EA;border:1px solid #34A853;border-radius:16px;padding:13px 15px;display:flex;align-items:center;gap:11px;margin-bottom:11px;}
+.arrived-check{width:42px;height:42px;background:#34A853;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;flex-shrink:0;}
+.arrived-title{font-size:16px;font-weight:700;color:#137333;margin-bottom:2px;}
+.arrived-addr{font-size:11.5px;color:#34A853;}
+.door-pill{background:#E6F4EA;border-radius:10px;padding:8px 13px;display:flex;align-items:center;gap:8px;margin-bottom:11px;}
+.door-txt{font-size:12.5px;color:#137333;font-weight:500;}
+.arrived-btns{display:flex;gap:8px;margin-bottom:6px;}
+.ab-btn{flex:1;border-radius:13px;padding:12px 4px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:5px;transition:all .14s;border:none;}
+.ab-btn .ico{font-size:19px;}
+.ab-btn .lbl{font-size:10.5px;font-weight:600;}
+.ab-rate{background:linear-gradient(135deg,#1A73E8,#00BFA5);color:#fff;}
+.ab-report{background:#f1f3f4;color:#5f6368;}
+.survey-notice{text-align:center;font-size:11px;color:#9aa0a6;}
+
+/* ═══════════ UNSAFE DROP-OFF ═══════════ */
+#dropoff{background:#fff;}
+.nav-head{padding:56px 20px 14px;border-bottom:1px solid #f1f3f4;}
+.back-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+.back-c{width:36px;height:36px;background:#f1f3f4;border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;}
+.pg-title{font-size:21px;font-weight:700;color:#202124;margin-bottom:4px;}
+.pg-sub{font-size:13px;color:#5f6368;line-height:1.5;}
+.alert-strip{margin:12px 20px 0;background:#FFF3E0;border:1px solid #FFCC80;border-radius:12px;padding:12px 14px;display:flex;gap:10px;}
+.al-icon{font-size:17px;flex-shrink:0;}.al-text{font-size:13px;color:#E65100;line-height:1.5;}
+.opt-list{padding:14px 20px;flex:1;overflow-y:auto;}
+.opt-card{border:1.5px solid #e8eaed;border-radius:16px;padding:14px;margin-bottom:10px;cursor:pointer;display:flex;align-items:flex-start;gap:12px;transition:all .14s;}
+.opt-card:hover,.opt-card.rec{border-color:#1A73E8;background:#E8F0FE;}
+.opt-ico{width:42px;height:42px;background:#f1f3f4;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0;}
+.opt-ico.rec{background:#D2E3FC;}
+.opt-n{font-size:14px;font-weight:600;color:#202124;margin-bottom:2px;}
+.opt-d{font-size:12px;color:#5f6368;line-height:1.4;}
+.best-b{background:#1A73E8;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap;}
+
+/* ═══════════ REROUTING ═══════════ */
+#reroute{background:#fff;}
+.reroute-map-area{flex:1;background:#1d2c4d;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+.rr-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:40px 40px;}
+.spinner-wrap{text-align:center;z-index:2;}
+.spinner{width:60px;height:60px;border:4px solid rgba(26,115,232,.2);border-top-color:#1A73E8;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 14px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sp-label{font-size:17px;font-weight:600;color:#fff;}
+.sp-sub{font-size:13px;color:#8899bb;margin-top:4px;}
+.rr-sheet{background:#fff;border-radius:24px 24px 0 0;padding:14px 20px 40px;box-shadow:0 -4px 20px rgba(0,0,0,.12);}
+.rr-title{font-size:12px;font-weight:600;color:#5f6368;text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;}
+.route-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f1f3f4;}
+.route-row:last-of-type{border-bottom:none;}
+.r-ico{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.ri-from{background:#E8F0FE;}.ri-to{background:#FCE8E6;}
+.r-lbl{font-size:11px;color:#80868b;margin-bottom:2px;}
+.r-name{font-size:14px;font-weight:600;color:#202124;}
+.r-sub{font-size:12px;color:#5f6368;margin-top:1px;}
+.free-bar{background:#E6F4EA;border:1px solid #34A853;border-radius:10px;padding:8px 14px;display:flex;align-items:center;gap:8px;margin:12px 0;}
+.free-t{font-size:13px;color:#137333;font-weight:500;}
+.confirm-btn{width:100%;background:linear-gradient(135deg,#1A73E8,#00BFA5);border:none;border-radius:14px;padding:15px;color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;}
+
+/* ═══════════ DANGER ═══════════ */
+#danger{background:#fff;}
+.danger-top{padding:56px 20px 18px;background:#FCE8E6;border-bottom:1px solid #FCCBC7;}
+.d-title-row{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+.d-icon{width:44px;height:44px;background:#EA4335;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;}
+.d-title{font-size:22px;font-weight:700;color:#C62828;}
+.d-sub{font-size:13px;color:#B71C1C;line-height:1.6;}
+.steps{padding:6px 20px;flex:1;}
+.step{display:flex;align-items:flex-start;gap:14px;padding:13px 0;border-bottom:1px solid #f1f3f4;}
+.step:last-of-type{border-bottom:none;}
+.step-ind{display:flex;flex-direction:column;align-items:center;flex-shrink:0;margin-top:2px;}
+.step-c{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;}
+.step-line{width:2px;background:#f1f3f4;flex:1;min-height:16px;margin-top:4px;}
+.sc-done{background:#E6F4EA;border:2px solid #34A853;}
+.sc-act{background:#FCE8E6;border:2px solid #EA4335;animation:pred 1.5s infinite;}
+.sc-pend{background:#f1f3f4;border:2px solid #dadce0;}
+@keyframes pred{0%,100%{box-shadow:0 0 0 0 rgba(234,67,53,.4)}50%{box-shadow:0 0 0 8px rgba(234,67,53,0)}}
+.sn{font-size:14px;font-weight:600;color:#202124;margin-bottom:3px;}
+.ss-done{font-size:12px;color:#34A853;font-weight:500;}
+.ss-act{font-size:12px;color:#EA4335;font-weight:500;display:flex;align-items:center;gap:4px;}
+.ss-pend{font-size:12px;color:#9aa0a6;}
+.cdot{width:5px;height:5px;background:#EA4335;border-radius:50%;animation:blink 1s infinite;display:inline-block;}
+.cdot:nth-child(2){animation-delay:.2s;}.cdot:nth-child(3){animation-delay:.4s;}
+@keyframes blink{0%,100%{opacity:.2}50%{opacity:1}}
+.agent-c{margin:4px 20px 0;background:#fff;border:1.5px solid #FCCBC7;border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:14px;}
+.ag-ava{width:46px;height:46px;background:linear-gradient(135deg,#1A73E8,#00BFA5);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.ag-name{font-size:15px;font-weight:600;color:#202124;}
+.ag-status{font-size:12px;color:#EA4335;margin-top:2px;}
+.cancel-d{margin:14px 20px 40px;width:calc(100% - 40px);background:#fff;border:1.5px solid #dadce0;border-radius:14px;padding:14px;color:#5f6368;font-size:14px;cursor:pointer;font-family:inherit;}
+
+/* ═══════════ SURVEY ═══════════ */
+#survey{background:#fff;}
+.sv-top{padding:56px 20px 0;}
+.sv-eye{font-size:10px;color:#80868b;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;}
+.sv-title{font-size:23px;font-weight:700;color:#202124;margin-bottom:5px;}
+.sv-sub{font-size:13px;color:#5f6368;line-height:1.5;}
+.stars-row{display:flex;justify-content:center;gap:8px;padding:20px 20px;border-bottom:1px solid #f1f3f4;}
+.star{font-size:36px;cursor:pointer;filter:grayscale(1);opacity:.35;transition:all .15s;}
+.star.lit{filter:none;opacity:1;transform:scale(1.1);}
+.sv-body{padding:18px 20px;flex:1;overflow-y:auto;}
+.sv-q{margin-bottom:20px;}
+.sv-ql{font-size:14px;font-weight:600;color:#202124;margin-bottom:10px;}
+.chips{display:flex;flex-wrap:wrap;gap:8px;}
+.chip{background:#f1f3f4;border:1.5px solid #e8eaed;border-radius:20px;padding:8px 14px;font-size:13px;color:#3c4043;cursor:pointer;transition:all .14s;font-family:inherit;}
+.chip:hover,.chip.sel{background:#E8F0FE;border-color:#1A73E8;color:#1A73E8;font-weight:600;}
+.submit-btn{margin:0 20px 40px;width:calc(100% - 40px);background:linear-gradient(135deg,#1A73E8,#00BFA5);border:none;border-radius:14px;padding:15px;color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;}
+
+/* ═══════════ SUCCESS ═══════════ */
+#success{background:#fff;align-items:center;justify-content:center;text-align:center;padding:48px 32px;}
+.succ-g{width:88px;height:88px;background:linear-gradient(135deg,#1A73E8,#00BFA5);border-radius:26px;display:flex;align-items:center;justify-content:center;font-size:44px;margin:0 auto 22px;box-shadow:0 8px 28px rgba(26,115,232,.3);}
+.succ-title{font-size:26px;font-weight:700;color:#202124;margin-bottom:10px;}
+.succ-sub{font-size:14px;color:#5f6368;line-height:1.7;margin-bottom:28px;}
+.waymo-word{font-size:13px;font-weight:700;background:linear-gradient(135deg,#1A73E8,#00BFA5);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:22px;letter-spacing:.5px;}
+.done-btn{background:#f1f3f4;border:none;border-radius:14px;padding:14px 32px;color:#3c4043;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;}
+
+.home-bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;background:rgba(0,0,0,.18);border-radius:3px;}
+
+/* NAV */
+.demo-nav{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:430px;}
+.nav-group-label{width:100%;text-align:center;font-size:10px;color:#555;font-family:inherit;margin-top:4px;}
+.dnav{background:#1a1a2a;border:1px solid #2a2a4a;border-radius:20px;padding:7px 13px;font-size:11.5px;color:#8899cc;cursor:pointer;font-family:inherit;transition:all .14s;}
+.dnav:hover{background:#1A73E8;border-color:#1A73E8;color:#fff;}
+.dnav-note{font-size:11px;color:#555;font-family:inherit;}
+
+/* add-stop toast */
+.toast{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:#202124;color:#fff;padding:11px 20px;border-radius:24px;font-size:13px;font-weight:500;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;white-space:nowrap;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="phone">
+ <div class="screen">
+
+  <!-- ═══ RIDE SCREEN ═══ -->
+  <div class="view active" id="ride">
+
+   <canvas id="mapCanvas"></canvas>
+
+   <!-- Map UI -->
+   <div class="map-ui">
+    <div class="map-top">
+     <button class="map-icon-btn">☰</button>
+     <div class="map-status-pill">
+      <div class="live-dot"></div>
+      <div class="pill-text" id="streetLabel">Scott St &amp; Geary Blvd</div>
+     </div>
+     <button class="map-icon-btn">⋯</button>
+    </div>
+    <div class="car-behavior" id="behaviorStrip">
+     <div class="behavior-icon" id="behIcon">🚖</div>
+     <div>
+      <div class="behavior-main" id="behMain">Your Waymo has arrived</div>
+      <div class="behavior-sub" id="behSub">Doors unlocked · ID verified · WAY-7821</div>
+     </div>
+    </div>
+   </div>
+
+   <!-- Status bar -->
+   <div class="status-bar">
+    <span class="s-time" style="color:#e8eaf0" id="clockDisplay">11:43 PM</span>
+    <span class="s-icons" style="color:#e8eaf0">●●● 5G 🔋</span>
+   </div>
+
+   <!-- Emergency banner (shown after danger response activates) -->
+   <div id="emergencyBanner" style="display:none;position:absolute;top:50px;left:0;right:0;z-index:30;background:#EA4335;padding:10px 16px;flex-direction:row;align-items:center;gap:10px;">
+    <span style="font-size:20px">🚔</span>
+    <div style="flex:1">
+     <div style="font-size:13px;font-weight:700;color:#fff">Safety Response Active</div>
+     <div style="font-size:11px;color:rgba(255,255,255,.9)">Heading to SFPD Northern Station · Agent Sarah connected</div>
+    </div>
+    <button onclick="cancelDanger()" style="background:rgba(255,255,255,.2);border:none;border-radius:8px;color:#fff;font-size:11px;font-weight:600;padding:5px 9px;cursor:pointer;font-family:inherit;">Cancel</button>
+   </div>
+
+   <!-- Bottom Sheet -->
+   <div class="bottom-sheet">
+    <div class="handle"></div>
+
+    <!-- Journey Progress Bar (hidden in waiting phase) -->
+    <div class="journey-bar" id="journeyBar" style="display:none">
+     <div class="jstep done" id="j0"><div class="jdot"></div><span style="margin-left:3px">Picked up</span></div>
+     <div class="jline done" id="jl0"></div>
+     <div class="jstep" id="j1"><div class="jdot"></div><span style="margin-left:3px">En route</span></div>
+     <div class="jline" id="jl1"></div>
+     <div class="jstep" id="j2"><div class="jdot"></div><span style="margin-left:3px">Arriving</span></div>
+     <div class="jline" id="jl2"></div>
+     <div class="jstep" id="j3"><div class="jdot"></div><span style="margin-left:3px">Done</span></div>
+    </div>
+
+    <!-- ── PHASE: WAITING ── -->
+    <div class="phase-section active" id="phase-waiting">
+     <div class="car-card">
+      <div class="car-icon-big">🚖</div>
+      <div>
+       <div class="car-card-name">Your Waymo is here</div>
+       <div class="car-card-sub">Model 3 · WAY-7821 · Silver · ⭐ 4.9</div>
+      </div>
+     </div>
+     <div class="pickup-pill">
+      <div class="pickup-dot"></div>
+      <div class="pickup-txt">Pickup: Scott St &amp; Geary Blvd</div>
+     </div>
+     <div class="two-btns">
+      <button class="outline-btn" onclick="shareETA()">📤 Share ETA</button>
+      <button class="outline-btn danger-outline" onclick="showToast('Ride cancelled. No charge applied.')">✕ Cancel Ride</button>
+     </div>
+     <button class="primary-btn" onclick="startRide()">🚗&nbsp;&nbsp;I'm in — Start Ride</button>
+    </div>
+
+    <!-- ── PHASE: EN ROUTE (safety buttons) ── -->
+    <div class="phase-section" id="phase-enroute">
+     <div class="trip-row">
+      <div>
+       <div class="trip-lbl">Drop-off</div>
+       <div class="trip-name" id="tripNameE">The Fillmore</div>
+       <div class="trip-addr" id="tripAddrE">1805 Geary Blvd · SF</div>
+      </div>
+      <div class="eta-chip">
+       <div class="eta-num" id="etaNum">5</div>
+       <div class="eta-lbl">min</div>
+      </div>
+     </div>
+     <div class="progress-wrap">
+      <div class="progress-track">
+       <div class="progress-fill" id="progressFill" style="width:2%"></div>
+      </div>
+      <div class="progress-labels">
+       <span class="prog-label">📍 Scott St</span>
+       <span class="prog-label">🏁 The Fillmore</span>
+      </div>
+     </div>
+     <div class="divider"></div>
+     <div class="section-label-row">
+      <span class="section-lbl">Safety Controls</span>
+      <span class="new-badge">NEW</span>
+     </div>
+     <div class="sfbtns">
+      <button class="sfbtn sfd" onclick="show('dropoff')">
+       <span class="ico">📍</span><span class="lbl">Unsafe Drop-Off</span>
+      </button>
+      <button class="sfbtn sfr" onclick="selectDropOff(262,'Walgreens — Geary &amp; Fillmore','Geary Blvd &amp; Fillmore St · SF','Recommended · 0.1 mi from destination','🏪')">
+       <span class="ico">🔄</span><span class="lbl">Re-Route</span>
+      </button>
+      <button class="sfbtn sfi" onclick="activateDanger()">
+       <span class="ico">🆘</span><span class="lbl">I'm in Danger</span>
+      </button>
+     </div>
+    </div>
+
+    <!-- ── PHASE: APPROACHING ── -->
+    <div class="phase-section" id="phase-approaching">
+     <div class="trip-row">
+      <div>
+       <div class="trip-lbl" style="color:#1A73E8">Almost there</div>
+       <div class="trip-name" id="tripNameA">The Fillmore</div>
+       <div class="trip-addr" id="tripAddrA">1805 Geary Blvd · SF</div>
+      </div>
+      <div class="eta-chip">
+       <div class="eta-num" id="etaNumA">2</div>
+       <div class="eta-lbl">min</div>
+      </div>
+     </div>
+     <div class="progress-wrap">
+      <div class="progress-track">
+       <div class="progress-fill" id="progressFillA" style="width:72%"></div>
+      </div>
+      <div class="progress-labels">
+       <span class="prog-label">📍 Scott St</span>
+       <span class="prog-label">🏁 The Fillmore</span>
+      </div>
+     </div>
+     <div class="divider"></div>
+     <div class="section-label-row"><span class="section-lbl">Almost there — anything feel off?</span></div>
+     <div class="sfbtns" style="margin-bottom:8px;">
+      <button class="sfbtn sfd" onclick="show('dropoff')">
+       <span class="ico">📍</span><span class="lbl">Unsafe Drop-Off</span>
+      </button>
+      <button class="sfbtn sfr" onclick="selectDropOff(262,'Walgreens — Geary &amp; Fillmore','Geary Blvd &amp; Fillmore St · SF','Recommended · 0.1 mi from destination','🏪')">
+       <span class="ico">🔄</span><span class="lbl">Re-Route</span>
+      </button>
+      <button class="sfbtn sfi" onclick="activateDanger()">
+       <span class="ico">🆘</span><span class="lbl">I'm in Danger</span>
+      </button>
+     </div>
+     <button class="text-link" onclick="showToast('Sharing your live location with emergency contact.')">📤 Share my live location</button>
+    </div>
+
+    <!-- ── PHASE: ARRIVED ── -->
+    <div class="phase-section" id="phase-arrived">
+     <div class="arrived-banner">
+      <div class="arrived-check">✓</div>
+      <div>
+       <div class="arrived-title">You've arrived!</div>
+       <div class="arrived-addr">The Fillmore · 1805 Geary Blvd</div>
+      </div>
+     </div>
+     <div class="door-pill">
+      <span style="font-size:16px">🔓</span>
+      <span class="door-txt">Doors unlocked — safe to exit</span>
+     </div>
+     <div class="arrived-btns">
+      <button class="ab-btn ab-rate" onclick="show('survey')">
+       <span class="ico">⭐</span><span class="lbl">Rate this ride</span>
+      </button>
+      <button class="ab-btn ab-report" onclick="showToast('Report submitted. Safety team notified.')">
+       <span class="ico">❗</span><span class="lbl">Report issue</span>
+      </button>
+      <button class="ab-btn ab-report" onclick="showToast('Lost item report sent. We will follow up within 1 hour.')">
+       <span class="ico">🎒</span><span class="lbl">Lost item</span>
+      </button>
+     </div>
+     <div class="survey-notice" id="surveyCountdown">Safety survey opening in 5s...</div>
+    </div>
+
+   </div><!-- /bottom-sheet -->
+   <div class="home-bar"></div>
+  </div><!-- /ride -->
+
+  <!-- ═══ UNSAFE DROP-OFF ═══ -->
+  <div class="view" id="dropoff">
+   <div class="status-bar"><span class="s-time" style="color:#202124">11:45 PM</span><span class="s-icons" style="color:#202124">●●● 5G 🔋</span></div>
+   <div class="nav-head">
+    <div class="back-row">
+     <button class="back-c" onclick="show('ride')">←</button>
+     <span style="font-size:14px;color:#5f6368">Back to ride</span>
+    </div>
+    <div class="pg-title">Unsafe Drop-Off</div>
+    <div class="pg-sub">Safer alternatives near your destination.</div>
+   </div>
+   <div class="alert-strip">
+    <span class="al-icon">⚠️</span>
+    <span class="al-text">Your original stop at The Fillmore may have limited lighting after 11pm. Select a vetted alternative below.</span>
+   </div>
+   <div class="opt-list">
+    <div class="opt-card rec" onclick="selectDropOff(262,'Walgreens — Geary &amp; Fillmore','Geary Blvd &amp; Fillmore St · SF','Open 24h · Well-lit · 0.1 mi from destination','🏪')">
+     <div class="opt-ico rec">🏪</div>
+     <div style="flex:1">
+      <div class="opt-n">Walgreens — Geary &amp; Fillmore</div>
+      <div class="opt-d">Open 24h · Well-lit · 0.1 mi from destination</div>
+     </div>
+     <div class="best-b">Best</div>
+    </div>
+    <div class="opt-card" onclick="selectDropOff(480,'Hotel Kabuki Entrance','Geary Blvd &amp; Steiner St · SF','Staffed lobby · Covered drop zone · 0.2 mi','🏨')">
+     <div class="opt-ico">🏨</div>
+     <div>
+      <div class="opt-n">Hotel Kabuki Entrance</div>
+      <div class="opt-d">Staffed lobby · Covered drop zone · 0.2 mi</div>
+     </div>
+    </div>
+    <div class="opt-card" onclick="selectDropOff(220,'Fillmore St &amp; Post St','Fillmore St &amp; Post St · SF','High foot traffic · Street lighting · 0.1 mi','🌳')">
+     <div class="opt-ico">🌳</div>
+     <div>
+      <div class="opt-n">Fillmore St &amp; Post St</div>
+      <div class="opt-d">High foot traffic · Street lighting · 0.1 mi</div>
+     </div>
+    </div>
+   </div>
+   <div class="home-bar"></div>
+  </div>
+
+  <!-- ═══ REROUTING ═══ -->
+  <div class="view" id="reroute">
+   <div class="status-bar"><span class="s-time" style="color:#e8eaf0">11:45 PM</span><span class="s-icons" style="color:#e8eaf0">●●● 5G 🔋</span></div>
+   <div style="position:relative;flex:1;overflow:hidden;background:#1d2c4d;">
+    <canvas id="rerouteCanvas" style="position:absolute;top:0;left:0;width:393px;"></canvas>
+    <div id="rrSpinnerWrap" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,34,65,0.82);z-index:5;transition:opacity 0.7s;">
+     <div class="spinner-wrap">
+      <div class="spinner"></div>
+      <div class="sp-label">Recalculating route</div>
+      <div class="sp-sub">No extra charge · ETA unchanged</div>
+     </div>
+    </div>
+   </div>
+   <div class="rr-sheet">
+    <div class="handle"></div>
+    <div class="rr-title">New Route</div>
+    <div class="route-row">
+     <div class="r-ico ri-from">📍</div>
+     <div><div class="r-lbl">Current location</div><div class="r-name">Geary Blvd &amp; Steiner St</div></div>
+    </div>
+    <div class="route-row">
+     <div class="r-ico ri-to" id="rrToIco">🏪</div>
+     <div>
+      <div class="r-lbl" id="rrToLbl">New drop-off</div>
+      <div class="r-name" id="rrToName">Walgreens — Geary &amp; Fillmore</div>
+      <div class="r-sub" id="rrToSub">0.1 mi from original · ~5 min</div>
+     </div>
+    </div>
+    <div class="free-bar"><span style="font-size:16px">✅</span><span class="free-t" id="rrFreeText">No charge for safety reroutes</span></div>
+    <button class="confirm-btn" id="rrConfirmBtn" onclick="confirmReroute()">Confirm New Route</button>
+   </div>
+   <div class="home-bar"></div>
+  </div>
+
+  <!-- ═══ I'M IN DANGER ═══ -->
+  <div class="view" id="danger">
+   <div class="status-bar" style="background:#FCE8E6;position:relative;">
+    <span class="s-time" style="color:#C62828">11:45 PM</span>
+    <span class="s-icons" style="color:#C62828">●●● 5G 🔋</span>
+   </div>
+   <div class="danger-top">
+    <div class="d-title-row">
+     <div class="d-icon">🆘</div>
+     <div class="d-title">Safety Response</div>
+    </div>
+    <div class="d-sub">Waymo is responding right now. Stay calm — a Safety Agent is connecting to you.</div>
+   </div>
+   <div class="steps">
+    <div class="step">
+     <div class="step-ind"><div class="step-c sc-done">✓</div><div class="step-line"></div></div>
+     <div><div class="sn">Cabin doors locked</div><div class="ss-done">Complete</div></div>
+    </div>
+    <div class="step">
+     <div class="step-ind"><div class="step-c sc-act" id="ds2">📡</div><div class="step-line"></div></div>
+     <div>
+      <div class="sn">Connecting Safety Agent</div>
+      <div id="ds2-status" class="ss-act"><span class="cdot"></span><span class="cdot"></span><span class="cdot"></span><span style="margin-left:4px">Connecting...</span></div>
+     </div>
+    </div>
+    <div class="step" id="step3" style="opacity:.4">
+     <div class="step-ind"><div class="step-c sc-pend" id="ds3">📍</div></div>
+     <div>
+      <div class="sn">Locating nearest police station</div>
+      <div id="ds3-status" class="ss-pend">Waiting for agent</div>
+     </div>
+    </div>
+   </div>
+   <div class="agent-c" id="agentCard">
+    <div class="ag-ava">👤</div>
+    <div>
+     <div class="ag-name" id="agentName">Waymo Safety Agent</div>
+     <div class="ag-status" id="agentStatus">Connecting now...</div>
+    </div>
+   </div>
+   <div id="navBanner" style="display:none;margin:10px 20px 0;background:#1A73E8;border-radius:14px;padding:13px 16px;display:none;align-items:center;gap:12px;">
+    <div style="font-size:26px">🚔</div>
+    <div>
+     <div style="font-size:14px;font-weight:700;color:#fff">Navigating to SFPD Northern Station</div>
+     <div style="font-size:12px;color:rgba(255,255,255,.85);margin-top:2px">1125 Fillmore St · 0.4 mi · Car rerouted</div>
+    </div>
+   </div>
+   <button class="cancel-d" onclick="cancelDanger()">I'm safe — cancel this response</button>
+   <div class="home-bar"></div>
+  </div>
+
+  <!-- ═══ SURVEY ═══ -->
+  <div class="view" id="survey">
+   <div class="status-bar"><span class="s-time" style="color:#202124">11:52 PM</span><span class="s-icons" style="color:#202124">●●● 5G 🔋</span></div>
+   <div class="sv-top">
+    <div class="sv-eye">Waymo Safety Feedback</div>
+    <div class="sv-title">How safe did you feel?</div>
+    <div class="sv-sub">30 seconds. Your feedback shapes what we build next.</div>
+   </div>
+   <div class="stars-row">
+    <div class="star" onclick="rateStar(1)">⭐</div>
+    <div class="star" onclick="rateStar(2)">⭐</div>
+    <div class="star" onclick="rateStar(3)">⭐</div>
+    <div class="star" onclick="rateStar(4)">⭐</div>
+    <div class="star" onclick="rateStar(5)">⭐</div>
+   </div>
+   <div class="sv-body">
+    <div class="sv-q">
+     <div class="sv-ql">Did anything feel unsafe?</div>
+     <div class="chips">
+      <button class="chip" onclick="toggleChip(this)">Drop-off location</button>
+      <button class="chip" onclick="toggleChip(this)">Route felt unusual</button>
+      <button class="chip" onclick="toggleChip(this)">Nothing — felt safe ✓</button>
+      <button class="chip" onclick="toggleChip(this)">Other</button>
+     </div>
+    </div>
+    <div class="sv-q">
+     <div class="sv-ql">Did the safety buttons help?</div>
+     <div class="chips">
+      <button class="chip" onclick="toggleChip(this)">Yes — felt more in control</button>
+      <button class="chip" onclick="toggleChip(this)">Didn't need them</button>
+      <button class="chip" onclick="toggleChip(this)">Didn't notice them</button>
+     </div>
+    </div>
+   </div>
+   <button class="submit-btn" onclick="show('success')">Submit Feedback</button>
+   <div class="home-bar"></div>
+  </div>
+
+  <!-- ═══ SUCCESS ═══ -->
+  <div class="view" id="success">
+   <div class="status-bar"><span class="s-time" style="color:#202124">11:52 PM</span><span class="s-icons" style="color:#202124">●●● 5G 🔋</span></div>
+   <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:48px 32px;">
+    <div class="succ-g">✓</div>
+    <div class="waymo-word">WAYMO ONE</div>
+    <div class="succ-title">Thanks, Mia</div>
+    <div class="succ-sub">Your feedback goes directly to Waymo's Safety Council and helps make every late-night ride safer.</div>
+    <button class="done-btn" onclick="resetRide()">Done</button>
+   </div>
+   <div class="home-bar"></div>
+  </div>
+
+ </div>
+</div>
+
+<!-- NAV BUTTONS -->
+<div class="demo-nav">
+ <div class="nav-group-label">── Journey Phases ──</div>
+ <button class="dnav" onclick="jumpPhase('waiting')">🚖 Car Arrived</button>
+ <button class="dnav" onclick="jumpPhase('enroute')">🚗 En Route</button>
+ <button class="dnav" onclick="jumpPhase('approaching')">📍 Approaching</button>
+ <button class="dnav" onclick="jumpPhase('arrived')">✅ Arrived</button>
+ <div class="nav-group-label">── Safety Screens ──</div>
+ <button class="dnav" onclick="show('dropoff')">📍 Unsafe Drop-Off</button>
+ <button class="dnav" onclick="show('reroute')">🔄 Reroute</button>
+ <button class="dnav" onclick="activateDanger()">🆘 I'm in Danger</button>
+ <button class="dnav" onclick="show('survey')">📋 Survey</button>
+</div>
+<div class="dnav-note">Tap screens interactively or jump phases with nav above</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ─── PHASE MANAGEMENT ─── */
+let ridePhase = 'waiting'; // waiting | enroute | approaching | arrived
+let mapRunning = false;
+let surveyTimer = null;
+let arrivedCountdown = 5;
+let arrivedInterval = null;
+
+/* ─── DESTINATION STATE ─── */
+// All coordinates in map-world units (Fillmore=220, Walgreens=262, Steiner=480, Scott=1000)
+let mapDestX     = 220;                        // current destination X (= ROUTE_END_X at start)
+let mapDestLabel = 'The Fillmore';             // label on map pin
+let mapDestAddr  = '1805 Geary Blvd · SF';    // sub-line in bottom sheet
+let mapDestSub   = '';                         // reroute sheet sub-text
+let mapDestIco   = '🏁';                       // reroute sheet icon
+
+function updateDestUI() {
+  const nameE = document.getElementById('tripNameE');
+  const addrE = document.getElementById('tripAddrE');
+  const nameA = document.getElementById('tripNameA');
+  const addrA = document.getElementById('tripAddrA');
+  if (nameE) nameE.textContent = mapDestLabel;
+  if (addrE) addrE.textContent = mapDestAddr;
+  if (nameA) nameA.textContent = mapDestLabel;
+  if (addrA) addrA.textContent = mapDestAddr;
+}
+
+function selectDropOff(destX, name, addr, sub, ico) {
+  mapDestX     = destX;
+  mapDestLabel = name;
+  mapDestAddr  = addr;
+  mapDestSub   = sub  || '';
+  mapDestIco   = ico  || '📍';
+  rerouteTarget = 'walgreens';
+  show('reroute');
+}
+
+const PHASE_APPROACHING = 0.70;
+const PHASE_ARRIVED     = 0.93;
+
+function setPhase(phase) {
+  ridePhase = phase;
+
+  // Toggle phase sections
+  document.querySelectorAll('.phase-section').forEach(el => el.classList.remove('active'));
+  const ps = document.getElementById('phase-' + phase);
+  if (ps) ps.classList.add('active');
+
+  // Journey bar
+  const jbar = document.getElementById('journeyBar');
+  jbar.style.display = (phase === 'waiting') ? 'none' : 'flex';
+  updateJourneyBar(phase);
+
+  // Behavior strip
+  const strip = document.getElementById('behaviorStrip');
+  if (phase === 'waiting') {
+    strip.style.display = 'flex';
+    document.getElementById('behIcon').textContent = '🚖';
+    document.getElementById('behMain').textContent = 'Your Waymo has arrived';
+    document.getElementById('behSub').textContent  = 'Doors unlocked · ID verified · WAY-7821';
+  } else if (phase === 'arrived') {
+    strip.style.display = 'none';
+  } else {
+    strip.style.display = 'flex';
+  }
+
+  // Arrived countdown
+  if (phase === 'arrived') {
+    arrivedCountdown = 15;
+    document.getElementById('surveyCountdown').textContent = 'Safety survey opening in 15s...';
+    arrivedInterval = setInterval(() => {
+      arrivedCountdown--;
+      const el = document.getElementById('surveyCountdown');
+      if (el) el.textContent = arrivedCountdown > 0
+        ? 'Safety survey opening in ' + arrivedCountdown + 's...'
+        : 'Opening survey...';
+      if (arrivedCountdown <= 0) {
+        clearInterval(arrivedInterval);
+        show('survey');
+      }
+    }, 1000);
+  } else {
+    if (arrivedInterval) { clearInterval(arrivedInterval); arrivedInterval = null; }
+  }
+}
+
+function updateJourneyBar(phase) {
+  const steps = ['j0','j1','j2','j3'];
+  const lines  = ['jl0','jl1','jl2'];
+  const phaseOrder = {'enroute':1,'approaching':2,'arrived':3};
+  const idx = phaseOrder[phase] || 0;
+
+  steps.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'jstep' + (i < idx ? ' done' : i === idx ? ' curr' : '');
+  });
+  lines.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'jline' + (i < idx ? ' done' : '');
+  });
+}
+
+function startRide() {
+  carX = ROUTE_START_X;
+  tripProgress = 0;
+  etaMs = 5 * 60 * 1000;
+  mapRunning = true;
+  setPhase('enroute');
+  // already on ride screen — no need to call show('ride')
+}
+
+function jumpPhase(phase) {
+  show('ride');
+  if (arrivedInterval) { clearInterval(arrivedInterval); arrivedInterval = null; }
+  if (phase === 'waiting') {
+    mapRunning = false;
+    carX = ROUTE_START_X;
+    tripProgress = 0;
+    etaMs = 5 * 60 * 1000;
+    setPhase('waiting');
+  } else if (phase === 'enroute') {
+    carX = ROUTE_START_X;
+    tripProgress = 0.1;
+    etaMs = 4.5 * 60 * 1000;
+    mapRunning = true;
+    setPhase('enroute');
+    document.getElementById('progressFill').style.width = '10%';
+  } else if (phase === 'approaching') {
+    tripProgress = 0.74;
+    carX = ROUTE_START_X - 0.74 * (ROUTE_START_X - ROUTE_END_X);
+    etaMs = 1.5 * 60 * 1000;
+    mapRunning = true;
+    setPhase('approaching');
+    document.getElementById('progressFillA').style.width = '74%';
+    document.getElementById('etaNumA').textContent = '2';
+  } else if (phase === 'arrived') {
+    carX = ROUTE_END_X;
+    tripProgress = 1;
+    mapRunning = false;
+    etaMs = 0;
+    setPhase('arrived');
+    document.getElementById('progressFill').style.width = '100%';
+  }
+}
+
+function resetRide() {
+  mapRunning = false;
+  carX = ROUTE_START_X;
+  tripProgress = 0;
+  etaMs = 5 * 60 * 1000;
+  dangerActive = false;
+  rerouteTarget = 'walgreens';
+  mapDestX     = 220; // ROUTE_END_X
+  mapDestLabel = 'The Fillmore';
+  mapDestAddr  = '1805 Geary Blvd · SF';
+  mapDestSub   = '';
+  mapDestIco   = '🏁';
+  updateDestUI();
+  document.getElementById('emergencyBanner').style.display = 'none';
+  setPhase('waiting');
+  show('ride');
+}
+
+function shareETA() {
+  showToast('Live ETA shared with your emergency contact.');
+}
+
+/* ─── VIEW SWITCHING ─── */
+let rerouteTarget = 'walgreens'; // 'walgreens' | 'police'
+
+function confirmReroute() {
+  if (rerouteTarget === 'police') {
+    mapDestX     = POLICE_X;
+    mapDestLabel = 'SFPD Northern Station';
+    mapDestAddr  = '1125 Fillmore St · SF';
+    dangerActive = true;
+    rerouteTarget = 'walgreens';
+    show('ride');
+    document.getElementById('emergencyBanner').style.display = 'flex';
+    mapRunning = true;
+  } else {
+    updateDestUI();   // refresh bottom-sheet trip name / addr
+    show('ride');
+  }
+}
+
+function setupRerouteUI(target) {
+  const ico  = document.getElementById('rrToIco');
+  const lbl  = document.getElementById('rrToLbl');
+  const name = document.getElementById('rrToName');
+  const sub  = document.getElementById('rrToSub');
+  const free = document.getElementById('rrFreeText');
+  const btn  = document.getElementById('rrConfirmBtn');
+  if (target === 'police') {
+    if (ico)  ico.textContent  = '🚔';
+    if (lbl)  lbl.textContent  = 'Emergency destination';
+    if (name) name.textContent = 'SFPD Northern Station';
+    if (sub)  sub.textContent  = '1125 Fillmore St · 0.4 mi · Agent Sarah monitoring';
+    if (free) free.textContent = 'Safety response active — agent connected';
+    if (btn)  btn.textContent  = 'Confirm — Head to Police Station';
+  } else {
+    if (ico)  ico.textContent  = mapDestIco  || '📍';
+    if (lbl)  lbl.textContent  = 'New drop-off';
+    if (name) name.textContent = mapDestLabel || 'Walgreens — Geary & Fillmore';
+    if (sub)  sub.textContent  = mapDestSub   || '0.1 mi from current location';
+    if (free) free.textContent = 'No charge for safety reroutes';
+    if (btn)  btn.textContent  = 'Confirm New Route';
+  }
+}
+
+function show(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id !== 'ride') mapRunning = false;
+  else if (ridePhase === 'enroute' || ridePhase === 'approaching') mapRunning = true;
+  if (id === 'survey') resetSurvey();
+  if (id === 'reroute') {
+    setupRerouteUI(rerouteTarget);
+    if (rerouteTarget === 'police') {
+      startReroute(); // animated route only for police
+    } else {
+      // Normal reroute: just fade out the spinner, no canvas animation
+      const sw = document.getElementById('rrSpinnerWrap');
+      if (sw) { sw.style.opacity = '1'; sw.style.pointerEvents = 'all'; }
+      setTimeout(() => {
+        if (sw) { sw.style.opacity = '0'; sw.style.pointerEvents = 'none'; }
+      }, 900);
+    }
+  }
+}
+
+/* ─── REROUTE MAP ANIMATION ─── */
+const RR_DEST_X = 262; // Walgreens at Geary & Fillmore
+const RR_DEST_Y = 440; // = GEARY_Y (Geary Blvd road Y coordinate)
+const RR_ANIM_MS = 1800;
+
+let rrCanvas, rrCtx, rrAnimId;
+let rrStartCarX = 600;
+let rrProgress = 0;
+
+function initRerouteCanvas() {
+  rrCanvas = document.getElementById('rerouteCanvas');
+  if (!rrCanvas) return;
+  rrCtx = rrCanvas.getContext('2d');
+  const CH_R = 580;
+  rrCanvas.width  = 393 * DPR;
+  rrCanvas.height = CH_R * DPR;
+  rrCanvas.style.height = CH_R + 'px';
+  rrCtx.scale(DPR, DPR);
+}
+
+function startReroute() {
+  if (!rrCtx) initRerouteCanvas();
+  const canvasDest = rerouteTarget === 'police' ? POLICE_X : mapDestX;
+  rrStartCarX = Math.max(carX, canvasDest + 40); // capture current car position
+  rrProgress = 0;
+
+  // Reset spinner
+  const sw = document.getElementById('rrSpinnerWrap');
+  if (sw) { sw.style.opacity = '1'; sw.style.pointerEvents = 'all'; }
+
+  // Fade out spinner after 0.5s, route starts drawing
+  setTimeout(() => {
+    if (sw) { sw.style.opacity = '0'; sw.style.pointerEvents = 'none'; }
+  }, 500);
+
+  if (rrAnimId) cancelAnimationFrame(rrAnimId);
+  let t0 = null;
+  function frame(now) {
+    if (!t0) t0 = now;
+    rrProgress = Math.min(1, (now - t0) / RR_ANIM_MS);
+    drawRerouteMap();
+    if (rrProgress < 1) rrAnimId = requestAnimationFrame(frame);
+  }
+  rrAnimId = requestAnimationFrame(frame);
+}
+
+function drawRerouteMap() {
+  if (!rrCtx) return;
+  const rc = rrCtx;
+  const CW_R = 393, CH_R = 580;
+  const isPolice = rerouteTarget === 'police';
+
+  // Camera: center on midpoint between car and destination
+  const destX = isPolice ? POLICE_X : mapDestX;
+  const destY = isPolice ? POLICE_Y : GEARY_Y;
+  const midX = (rrStartCarX + destX) / 2;
+  const midY = (GEARY_Y + destY) / 2;
+  const ox = CW_R / 2 - midX;
+  const oy = CH_R / 2 - midY; // fixed: was CW_R, should be CH_R
+
+  rc.fillStyle = C.bg;
+  rc.fillRect(0, 0, CW_R, CH_R);
+  rc.save();
+  rc.translate(ox, oy);
+
+  // Buildings (same as main map)
+  const regions = [
+    { x1:0, y1:0,           x2:MW, y2:POST_Y - 7 },
+    { x1:0, y1:POST_Y+15,   x2:MW, y2:GEARY_Y - 14 },
+    { x1:0, y1:GEARY_Y+14,  x2:MW, y2:SUTTER_Y - 7 },
+    { x1:0, y1:SUTTER_Y+15, x2:MW, y2:MH },
+  ];
+  rc.fillStyle = C.building; rc.strokeStyle = C.buildingS; rc.lineWidth = 1;
+  for (const reg of regions) {
+    for (const cs of CROSS) {
+      const nextCs = CROSS.find(c => c.x > cs.x);
+      const xLeft  = cs.x + 10;
+      const xRight = nextCs ? nextCs.x - 10 : cs.x + 260;
+      if (xRight <= xLeft + 10) continue;
+      const bh = reg.y2 - reg.y1;
+      if (bh < 12) continue;
+      let bx = xLeft + 6, seed = cs.x * 0.01 + reg.y1 * 0.001;
+      while (bx < xRight - 10) {
+        const w = 30 + seededRand(seed++) * 80;
+        const bh2 = bh - 14;
+        if (bh2 > 8) {
+          rc.beginPath();
+          rc.roundRect(bx, reg.y1 + 6, Math.min(w, xRight - bx - 4), bh2, 2);
+          rc.fill(); rc.stroke();
+        }
+        bx += w + 8 + seededRand(seed++) * 12; seed++;
+      }
+    }
+  }
+
+  // Roads
+  rc.fillStyle = C.road;
+  rc.fillRect(0, SUTTER_Y - 7, MW, 14);
+  rc.fillRect(0, POST_Y - 7, MW, 14);
+  rc.fillStyle = C.mainRoad;
+  rc.fillRect(0, GEARY_Y - 13, MW, 26);
+  rc.fillStyle = C.road;
+  for (const cs of CROSS) rc.fillRect(cs.x - 8, 0, 16, MH);
+
+  // Centerlines
+  rc.setLineDash([20, 16]); rc.lineWidth = 1;
+  rc.strokeStyle = 'rgba(255,255,255,.1)';
+  rc.beginPath(); rc.moveTo(0, GEARY_Y); rc.lineTo(MW, GEARY_Y); rc.stroke();
+  rc.setLineDash([]);
+
+  // Old route (dashed, faded)
+  rc.setLineDash([10, 10]);
+  rc.strokeStyle = 'rgba(74,144,226,0.22)';
+  rc.lineWidth = 4; rc.lineCap = 'round';
+  rc.beginPath();
+  rc.moveTo(rrStartCarX, GEARY_Y);
+  rc.lineTo(ROUTE_END_X, GEARY_Y); // original Fillmore destination
+  rc.stroke();
+  rc.setLineDash([]);
+
+  // Eased progress
+  const ep = rrProgress < 0.5
+    ? 2 * rrProgress * rrProgress
+    : 1 - Math.pow(-2 * rrProgress + 2, 2) / 2;
+
+  if (isPolice) {
+    // ── Police route: L-shape — west along Geary, then south to station ──
+    // Phase 1 (ep 0→0.72): draw along Geary from car → POLICE_X
+    // Phase 2 (ep 0.72→1): draw south from POLICE_X,GEARY_Y → POLICE_X,POLICE_Y
+    const gearySeg = (rrStartCarX - POLICE_X);
+    const southSeg = (POLICE_Y - GEARY_Y);
+
+    let headX, headY;
+    if (ep <= 0.72) {
+      const t = ep / 0.72;
+      headX = rrStartCarX - t * gearySeg;
+      headY = GEARY_Y;
+    } else {
+      headX = POLICE_X;
+      headY = GEARY_Y + ((ep - 0.72) / 0.28) * southSeg;
+    }
+
+    // Glow + line along Geary
+    const gearyDrawTo = Math.min(headX + 0, POLICE_X); // how far west we've drawn
+    rc.strokeStyle = 'rgba(234,67,53,0.18)';
+    rc.lineWidth = 18; rc.lineCap = 'round';
+    rc.beginPath(); rc.moveTo(rrStartCarX, GEARY_Y); rc.lineTo(ep <= 0.72 ? headX : POLICE_X, GEARY_Y); rc.stroke();
+    rc.strokeStyle = '#EA4335'; rc.lineWidth = 5;
+    rc.beginPath(); rc.moveTo(rrStartCarX, GEARY_Y); rc.lineTo(ep <= 0.72 ? headX : POLICE_X, GEARY_Y); rc.stroke();
+
+    // South segment (only once Geary phase done)
+    if (ep > 0.72) {
+      rc.strokeStyle = 'rgba(234,67,53,0.18)';
+      rc.lineWidth = 18;
+      rc.beginPath(); rc.moveTo(POLICE_X, GEARY_Y); rc.lineTo(POLICE_X, headY); rc.stroke();
+      rc.strokeStyle = '#EA4335'; rc.lineWidth = 5;
+      rc.beginPath(); rc.moveTo(POLICE_X, GEARY_Y); rc.lineTo(POLICE_X, headY); rc.stroke();
+    }
+
+    // Animated drawing-head dot
+    if (rrProgress < 1) {
+      rc.beginPath(); rc.arc(headX, headY, 6, 0, Math.PI * 2);
+      rc.fillStyle = '#EA4335'; rc.fill();
+      rc.beginPath(); rc.arc(headX, headY, 11, 0, Math.PI * 2);
+      rc.fillStyle = 'rgba(234,67,53,0.28)'; rc.fill();
+    }
+
+    // Police station pin — fades in at end
+    const pinAlpha = Math.max(0, (ep - 0.82) / 0.18);
+    if (pinAlpha > 0) {
+      // Side street label
+      rc.font = `9px -apple-system,sans-serif`; rc.fillStyle = `rgba(107,122,150,${pinAlpha})`; rc.textAlign = 'center';
+      rc.fillText('Turk St', POLICE_X + 40, POLICE_Y - 12);
+      // Pin shadow
+      rc.fillStyle = `rgba(234,67,53,${pinAlpha * 0.25})`;
+      rc.beginPath(); rc.ellipse(POLICE_X, POLICE_Y + 4, 10, 5, 0, 0, Math.PI * 2); rc.fill();
+      // Pin circle
+      rc.fillStyle = `rgba(234,67,53,${pinAlpha})`;
+      rc.beginPath(); rc.arc(POLICE_X, POLICE_Y - 14, 14, 0, Math.PI * 2); rc.fill();
+      // Icon
+      rc.font = `14px sans-serif`; rc.textAlign = 'center'; rc.textBaseline = 'middle';
+      rc.fillText('🚔', POLICE_X, POLICE_Y - 14);
+      rc.textBaseline = 'alphabetic';
+      // Labels
+      rc.fillStyle = `rgba(255,255,255,${pinAlpha})`;
+      rc.font = `bold 10px -apple-system,sans-serif`; rc.textAlign = 'center';
+      rc.fillText('SFPD Northern Station', POLICE_X, POLICE_Y - 32);
+      rc.fillStyle = `rgba(200,220,255,${pinAlpha})`;
+      rc.font = `9px -apple-system,sans-serif`;
+      rc.fillText('1125 Fillmore St', POLICE_X, POLICE_Y - 21);
+    }
+
+  } else {
+    // ── Normal reroute: straight west along Geary to new destination ──
+    const routeLen = rrStartCarX - mapDestX;
+    const drawnToX = rrStartCarX - ep * routeLen;
+
+    // Glow
+    rc.strokeStyle = 'rgba(0,191,165,0.22)';
+    rc.lineWidth = 18; rc.lineCap = 'round';
+    rc.beginPath(); rc.moveTo(rrStartCarX, GEARY_Y); rc.lineTo(drawnToX, GEARY_Y); rc.stroke();
+    // Line
+    rc.strokeStyle = '#00BFA5'; rc.lineWidth = 6;
+    rc.beginPath(); rc.moveTo(rrStartCarX, GEARY_Y); rc.lineTo(drawnToX, GEARY_Y); rc.stroke();
+
+    // Drawing-head dot
+    if (rrProgress < 1) {
+      rc.beginPath(); rc.arc(drawnToX, GEARY_Y, 6, 0, Math.PI * 2);
+      rc.fillStyle = '#00BFA5'; rc.fill();
+      rc.beginPath(); rc.arc(drawnToX, GEARY_Y, 10, 0, Math.PI * 2);
+      rc.fillStyle = 'rgba(0,191,165,0.3)'; rc.fill();
+    }
+
+    // Destination pin — fades in at end, uses mapDestLabel / mapDestIco
+    const pinAlpha = Math.max(0, (ep - 0.75) / 0.25);
+    if (pinAlpha > 0) {
+      const px = mapDestX, py = GEARY_Y - 24;
+      rc.fillStyle = `rgba(26,115,232,${pinAlpha * 0.25})`;
+      rc.beginPath(); rc.ellipse(px, GEARY_Y + 4, 10, 5, 0, 0, Math.PI * 2); rc.fill();
+      rc.fillStyle = `rgba(26,115,232,${pinAlpha})`;
+      rc.beginPath(); rc.arc(px, py - 4, 13, 0, Math.PI * 2); rc.fill();
+      rc.font = `12px sans-serif`; rc.textAlign = 'center'; rc.textBaseline = 'middle';
+      rc.fillText(mapDestIco || '📍', px, py - 4);
+      rc.textBaseline = 'alphabetic';
+      rc.fillStyle = `rgba(255,255,255,${pinAlpha})`;
+      rc.font = `bold 10px -apple-system,sans-serif`; rc.textAlign = 'center';
+      rc.fillText(mapDestLabel, px, py - 22);
+      rc.fillStyle = `rgba(200,220,255,${pinAlpha})`;
+      rc.font = `9px -apple-system,sans-serif`;
+      rc.fillText(mapDestAddr, px, py - 11);
+    }
+  }
+
+  // Street labels
+  rc.font = '10px -apple-system,sans-serif';
+  rc.fillStyle = C.streetTxt; rc.textAlign = 'center';
+  for (const cs of CROSS) rc.fillText(cs.name, cs.x, GEARY_Y - 20);
+  rc.fillText('Geary Blvd', 120, GEARY_Y + 5);
+
+  // Original destination (The Fillmore) — crossed out / dimmed
+  rc.fillStyle = 'rgba(234,67,53,0.3)';
+  rc.beginPath(); rc.arc(ROUTE_END_X, GEARY_Y - 26, 10, 0, Math.PI * 2); rc.fill();
+  rc.strokeStyle = 'rgba(234,67,53,0.4)'; rc.lineWidth = 2;
+  rc.beginPath(); rc.moveTo(ROUTE_END_X - 6, GEARY_Y - 32); rc.lineTo(ROUTE_END_X + 6, GEARY_Y - 20); rc.stroke();
+  rc.beginPath(); rc.moveTo(ROUTE_END_X + 6, GEARY_Y - 32); rc.lineTo(ROUTE_END_X - 6, GEARY_Y - 20); rc.stroke();
+
+  // Car icon
+  const cr = 13;
+  rc.beginPath(); rc.arc(rrStartCarX, GEARY_Y, cr + 6, 0, Math.PI * 2);
+  const gGlow = rc.createRadialGradient(rrStartCarX, GEARY_Y, cr, rrStartCarX, GEARY_Y, cr + 8);
+  gGlow.addColorStop(0, 'rgba(26,115,232,.35)');
+  gGlow.addColorStop(1, 'rgba(26,115,232,0)');
+  rc.fillStyle = gGlow; rc.fill();
+  rc.beginPath(); rc.arc(rrStartCarX, GEARY_Y, cr, 0, Math.PI * 2);
+  const gCar = rc.createLinearGradient(rrStartCarX - cr, GEARY_Y - cr, rrStartCarX + cr, GEARY_Y + cr);
+  gCar.addColorStop(0, '#1A73E8'); gCar.addColorStop(1, '#00BFA5');
+  rc.fillStyle = gCar; rc.fill();
+  rc.fillStyle = '#fff'; rc.font = 'bold 11px sans-serif';
+  rc.textAlign = 'center'; rc.textBaseline = 'middle';
+  rc.fillText('W', rrStartCarX, GEARY_Y);
+  rc.textBaseline = 'alphabetic';
+
+  rc.restore();
+}
+
+/* ─── DANGER RESPONSE ─── */
+let dangerActive = false;
+let dangerTimers = [];
+
+function activateDanger() {
+  // Reset UI state
+  dangerActive = false;
+  dangerTimers.forEach(clearTimeout);
+  dangerTimers = [];
+
+  const ds2    = document.getElementById('ds2');
+  const ds2s   = document.getElementById('ds2-status');
+  const step3  = document.getElementById('step3');
+  const ds3    = document.getElementById('ds3');
+  const ds3s   = document.getElementById('ds3-status');
+  const aName  = document.getElementById('agentName');
+  const aStatus= document.getElementById('agentStatus');
+  const nav    = document.getElementById('navBanner');
+
+  ds2.className   = 'step-c sc-act';
+  ds2.textContent = '📡';
+  ds2s.className  = 'ss-act';
+  ds2s.innerHTML  = '<span class="cdot"></span><span class="cdot"></span><span class="cdot"></span><span style="margin-left:4px">Connecting...</span>';
+  step3.style.opacity = '0.4';
+  ds3.className   = 'step-c sc-pend';
+  ds3.textContent = '📍';
+  ds3s.className  = 'ss-pend';
+  ds3s.textContent= 'Waiting for agent';
+  aName.textContent   = 'Waymo Safety Agent';
+  aStatus.textContent = 'Connecting now...';
+  aStatus.style.color = '#EA4335';
+  nav.style.display   = 'none';
+
+  show('danger');
+
+  // 3s — Agent connects
+  dangerTimers.push(setTimeout(() => {
+    ds2.className   = 'step-c sc-done';
+    ds2.textContent = '✓';
+    ds2s.className  = 'ss-done';
+    ds2s.textContent= 'Connected';
+    aName.textContent   = 'Agent Sarah';
+    aStatus.textContent = 'Connected · Locating nearest police station...';
+    aStatus.style.color = '#34A853';
+    step3.style.opacity = '1';
+    ds3.className   = 'step-c sc-act';
+    ds3.textContent = '📡';
+    ds3s.className  = 'ss-act';
+    ds3s.innerHTML  = '<span class="cdot"></span><span class="cdot"></span><span class="cdot"></span><span style="margin-left:4px">Locating...</span>';
+  }, 3000));
+
+  // 5.5s — Police station found → jump to reroute screen with animated police route
+  dangerTimers.push(setTimeout(() => {
+    ds3.className   = 'step-c sc-done';
+    ds3.textContent = '✓';
+    ds3s.className  = 'ss-done';
+    ds3s.textContent= 'SFPD Northern Station · 0.4 mi';
+    aStatus.textContent = 'Rerouting your vehicle now';
+    // Switch to police reroute mode and show reroute screen
+    rerouteTarget = 'police';
+    show('reroute');
+  }, 5500));
+
+  // 9s — After animation plays, return to ride map with emergency mode active
+  dangerTimers.push(setTimeout(() => {
+    dangerActive = true;
+    rerouteTarget = 'walgreens'; // reset for next normal reroute
+    show('ride');
+    document.getElementById('emergencyBanner').style.display = 'flex';
+    mapRunning = true;
+  }, 9000));
+}
+
+function cancelDanger() {
+  dangerActive = false;
+  rerouteTarget = 'walgreens';
+  dangerTimers.forEach(clearTimeout);
+  dangerTimers = [];
+  document.getElementById('emergencyBanner').style.display = 'none';
+  show('ride');
+}
+
+function rateStar(n) {
+  document.querySelectorAll('.star').forEach((s,i) => s.classList.toggle('lit', i < n));
+}
+
+function resetSurvey() {
+  document.querySelectorAll('.star').forEach(s => s.classList.remove('lit'));
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('sel'));
+}
+function toggleChip(el) { el.classList.toggle('sel'); }
+
+/* ─── TOAST ─── */
+let toastTimeout;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+/* ─── MAP ENGINE ─── */
+const canvas = document.getElementById('mapCanvas');
+const ctx    = canvas.getContext('2d');
+const DPR = window.devicePixelRatio || 1;
+const CW = 393, CH = 570;
+canvas.width  = CW * DPR;
+canvas.height = CH * DPR;
+canvas.style.width  = CW + 'px';
+canvas.style.height = CH + 'px';
+ctx.scale(DPR, DPR);
+
+const MW = 2400, MH = 900;
+const GEARY_Y  = 440;
+const POST_Y   = 290;
+const SUTTER_Y = 590;
+
+const CROSS = [
+  { x: 220,  name: 'Fillmore St'  },
+  { x: 480,  name: 'Steiner St'   },
+  { x: 740,  name: 'Pierce St'    },
+  { x: 1000, name: 'Scott St'     },
+  { x: 1260, name: 'Divisadero'   },
+  { x: 1520, name: 'Broderick St' },
+  { x: 1780, name: 'Baker St'     },
+  { x: 2040, name: 'Lyon St'      },
+];
+
+// Pickup at Scott St, destination at Fillmore
+const ROUTE_START_X = 1000;
+const ROUTE_END_X   = 220;
+const ROUTE_Y       = GEARY_Y;
+
+let carX = ROUTE_START_X;
+let carY = ROUTE_Y;
+let tripProgress = 0;
+let etaMs = 5 * 60 * 1000;
+let lastTime = performance.now();
+let clockTimer = 0;
+
+// Pickup pin position
+const PICKUP_X = ROUTE_START_X;
+
+const behaviors = [
+  { prog: 0.00, icon:'🚗', main:'Trip started — heading west', sub:'Speed 18 mph · All sensors active', street:'Scott St & Geary' },
+  { prog: 0.14, icon:'🚦', main:'Slowing for Divisadero signal', sub:'Yielding to pedestrians crossing', street:'Approaching Divisadero St' },
+  { prog: 0.28, icon:'🚗', main:'Resuming — light is green', sub:'Speed 22 mph · Lane clear', street:'Passing Divisadero St' },
+  { prog: 0.42, icon:'🔍', main:'Cyclist detected on right', sub:'Adjusting lane position safely', street:'Approaching Pierce St' },
+  { prog: 0.56, icon:'🚦', main:'Stopping at Steiner St signal', sub:'Red light · Pedestrian crossing', street:'At Steiner St' },
+  { prog: 0.70, icon:'🚗', main:'Resuming — final stretch', sub:'Speed 18 mph · 1 block to go', street:'Approaching The Fillmore' },
+  { prog: 0.84, icon:'📍', main:'Preparing for drop-off', sub:'Slowing · Pulling to curb safely', street:'Arriving at The Fillmore' },
+  { prog: 0.93, icon:'✅', main:'Arrived at The Fillmore', sub:'1805 Geary Blvd · Doors unlocked', street:'The Fillmore — 1805 Geary' },
+];
+
+function getCurrentBehavior() {
+  let b = behaviors[0];
+  for (const beh of behaviors) { if (tripProgress >= beh.prog) b = beh; }
+  return b;
+}
+
+// Police station location (between Fillmore & Steiner, south of Geary on side street)
+const POLICE_X = 350, POLICE_Y = GEARY_Y + 90;
+
+const C = {
+  bg:'#1d2c4d', bgLight:'#1f3050',
+  road:'#38414e', mainRoad:'#4a5568',
+  building:'#242f3e', buildingS:'#2a3a52',
+  park:'#1e3028',
+  routeLine:'#4a90e2', routeGlow:'rgba(74,144,226,.2)',
+  routeDone:'rgba(74,144,226,.3)',
+  streetTxt:'#6b7a96',
+  carGrad1:'#1A73E8', carGrad2:'#00BFA5',
+  destPin:'#EA4335',
+  pickupPin:'#34D058',
+};
+
+function seededRand(seed) {
+  let x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
+function drawMap(ox, oy) {
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, CW, CH);
+
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  // Parks
+  ctx.fillStyle = C.park;
+  ctx.fillRect(600, POST_Y + 16, 200, GEARY_Y - POST_Y - 32);
+
+  // Buildings
+  const regions = [
+    { x1:0, y1:0,           x2:MW, y2:POST_Y - 7 },
+    { x1:0, y1:POST_Y+15,   x2:MW, y2:GEARY_Y - 14 },
+    { x1:0, y1:GEARY_Y+14,  x2:MW, y2:SUTTER_Y - 7 },
+    { x1:0, y1:SUTTER_Y+15, x2:MW, y2:MH },
+  ];
+  ctx.fillStyle = C.building;
+  ctx.strokeStyle = C.buildingS;
+  ctx.lineWidth = 1;
+  for (const reg of regions) {
+    for (const cs of CROSS) {
+      const nextCs = CROSS.find(c => c.x > cs.x);
+      const xLeft  = cs.x + 10;
+      const xRight = nextCs ? nextCs.x - 10 : cs.x + 260;
+      if (xRight <= xLeft + 10) continue;
+      const bh = reg.y2 - reg.y1;
+      if (bh < 12) continue;
+      let bx = xLeft + 6;
+      let seed = cs.x * 0.01 + reg.y1 * 0.001;
+      while (bx < xRight - 10) {
+        const w = 30 + seededRand(seed++) * 80;
+        const by = reg.y1 + 6;
+        const bh2 = bh - 14;
+        if (bh2 > 8) {
+          ctx.beginPath();
+          ctx.roundRect(bx, by, Math.min(w, xRight - bx - 4), bh2, 2);
+          ctx.fill(); ctx.stroke();
+        }
+        bx += w + 8 + seededRand(seed++) * 12; seed++;
+      }
+    }
+  }
+
+  // Roads
+  ctx.fillStyle = C.road;
+  ctx.fillRect(0, SUTTER_Y - 7, MW, 14);
+  ctx.fillRect(0, POST_Y - 7, MW, 14);
+  ctx.fillStyle = C.mainRoad;
+  ctx.fillRect(0, GEARY_Y - 13, MW, 26);
+  ctx.fillStyle = C.road;
+  for (const cs of CROSS) ctx.fillRect(cs.x - 8, 0, 16, MH);
+
+  // Centerlines
+  ctx.setLineDash([20,16]);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,.1)';
+  ctx.beginPath(); ctx.moveTo(0, GEARY_Y); ctx.lineTo(MW, GEARY_Y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, POST_Y);  ctx.lineTo(MW, POST_Y);  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Route glow (full span of trip)
+  ctx.strokeStyle = C.routeGlow;
+  ctx.lineWidth = 16; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(mapDestX, ROUTE_Y); ctx.lineTo(ROUTE_START_X, ROUTE_Y); ctx.stroke();
+  // Remaining route (car → destination)
+  ctx.strokeStyle = C.routeLine; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(carX, ROUTE_Y); ctx.lineTo(mapDestX, ROUTE_Y); ctx.stroke();
+  // Completed (pickup → car)
+  ctx.strokeStyle = C.routeDone; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(carX, ROUTE_Y); ctx.lineTo(ROUTE_START_X, ROUTE_Y); ctx.stroke();
+
+  // Pickup pin (green) — show when not yet picked up
+  if (ridePhase === 'waiting') {
+    const px = PICKUP_X, py = ROUTE_Y - 22;
+    ctx.fillStyle = 'rgba(52,208,88,.25)';
+    ctx.beginPath(); ctx.ellipse(px, ROUTE_Y + 4, 10, 5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = C.pickupPin;
+    ctx.beginPath(); ctx.arc(px, py - 4, 11, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(px, py - 4, 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = C.pickupPin;
+    ctx.beginPath(); ctx.moveTo(px-5, py+3); ctx.lineTo(px+5, py+3); ctx.lineTo(px, ROUTE_Y); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 9px -apple-system,sans-serif';
+    ctx.textAlign = 'center'; ctx.fillText('YOU', px, py - 16);
+  }
+
+  // Destination pin (red) — moves with mapDestX
+  const dpx = mapDestX, dpy = ROUTE_Y - 22;
+  ctx.fillStyle = 'rgba(234,67,53,.25)';
+  ctx.beginPath(); ctx.ellipse(dpx, ROUTE_Y + 4, 10, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = C.destPin;
+  ctx.beginPath(); ctx.arc(dpx, dpy - 4, 12, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(dpx, dpy - 4, 5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = C.destPin;
+  ctx.beginPath(); ctx.moveTo(dpx-6, dpy+4); ctx.lineTo(dpx+6, dpy+4); ctx.lineTo(dpx, ROUTE_Y); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 10px -apple-system,sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText(mapDestLabel, dpx, dpy - 20);
+
+  // Street labels
+  ctx.font = '10px -apple-system,sans-serif';
+  ctx.fillStyle = C.streetTxt;
+  ctx.textAlign = 'center';
+  for (const cs of CROSS) ctx.fillText(cs.name, cs.x, GEARY_Y - 20);
+  ctx.fillText('Geary Blvd', 120, GEARY_Y + 5);
+  ctx.fillText('Post St',    120, POST_Y + 5);
+  ctx.fillText('Sutter St',  120, SUTTER_Y + 5);
+
+  // Police station pin (when danger active) — route already shown by main blue line
+  if (dangerActive) {
+    // Police station pin (blue circle with 🚔)
+    ctx.fillStyle = 'rgba(26,115,232,.25)';
+    ctx.beginPath();
+    ctx.arc(POLICE_X, POLICE_Y, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1A73E8';
+    ctx.beginPath();
+    ctx.arc(POLICE_X, POLICE_Y, 15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🚔', POLICE_X, POLICE_Y);
+    ctx.textBaseline = 'alphabetic';
+
+    // Label
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px -apple-system,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('SFPD Northern', POLICE_X, POLICE_Y - 24);
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.font = '9px -apple-system,sans-serif';
+    ctx.fillText('Station', POLICE_X, POLICE_Y - 13);
+  }
+
+  // Car (Waymo W)
+  const cr = 14;
+  ctx.beginPath(); ctx.arc(carX, carY, cr + 7, 0, Math.PI*2);
+  const gGlow = ctx.createRadialGradient(carX,carY,cr, carX,carY,cr+9);
+  gGlow.addColorStop(0, 'rgba(26,115,232,.35)');
+  gGlow.addColorStop(1, 'rgba(26,115,232,0)');
+  ctx.fillStyle = gGlow; ctx.fill();
+  ctx.beginPath(); ctx.arc(carX, carY, cr, 0, Math.PI*2);
+  const gCar = ctx.createLinearGradient(carX-cr,carY-cr, carX+cr,carY+cr);
+  gCar.addColorStop(0, '#1A73E8'); gCar.addColorStop(1, '#00BFA5');
+  ctx.fillStyle = gCar; ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('W', carX, carY);
+  ctx.textBaseline = 'alphabetic';
+
+  ctx.restore();
+}
+
+/* ─── ANIMATION LOOP ─── */
+function loop(now) {
+  const dt = now - lastTime;
+  lastTime = now;
+
+  if (mapRunning && document.getElementById('ride').classList.contains('active')) {
+    // Move car toward current destination
+    if (carX > mapDestX + 2) carX -= 1.2;
+    const totalDist = ROUTE_START_X - mapDestX;
+    tripProgress = totalDist > 0
+      ? 1 - Math.max(0, (carX - mapDestX) / totalDist)
+      : 1;
+
+    // ETA countdown
+    clockTimer += dt;
+    if (clockTimer >= 1000) {
+      clockTimer = 0;
+      etaMs = Math.max(0, etaMs - 2000);
+      const mins = Math.floor(etaMs / 60000);
+      const secs = Math.ceil((etaMs % 60000) / 1000);
+      const display = mins > 0 ? mins : (secs > 0 ? secs + 's' : '0s');
+      const e1 = document.getElementById('etaNum');
+      const e2 = document.getElementById('etaNumA');
+      if (e1) e1.textContent = display;
+      if (e2) e2.textContent = display;
+    }
+
+    // Progress bars
+    const pct = Math.min(100, tripProgress * 100);
+    const pf = document.getElementById('progressFill');
+    const pa = document.getElementById('progressFillA');
+    if (pf) pf.style.width = pct + '%';
+    if (pa) pa.style.width = pct + '%';
+
+    // Behavior strip (only in enroute/approaching)
+    if (ridePhase === 'enroute' || ridePhase === 'approaching') {
+      const beh = getCurrentBehavior();
+      document.getElementById('behIcon').textContent = beh.icon;
+      document.getElementById('behMain').textContent = beh.main;
+      document.getElementById('behSub').textContent  = beh.sub;
+      document.getElementById('streetLabel').textContent = beh.street;
+    }
+
+    // Auto phase transitions
+    if (ridePhase === 'enroute' && tripProgress >= PHASE_APPROACHING) {
+      setPhase('approaching');
+    } else if (ridePhase === 'approaching' && tripProgress >= PHASE_ARRIVED) {
+      mapRunning = false;
+      setPhase('arrived');
+    }
+  }
+
+  // Camera follows car
+  const ox = CW / 2 - carX;
+  const oy = CH / 2 - carY;
+  drawMap(ox, oy);
+
+  requestAnimationFrame(loop);
+}
+
+// Init
+setPhase('waiting');
+lastTime = performance.now();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
