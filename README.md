@@ -72,11 +72,3 @@ open waymo_safety_prototype.html
 ```
 
 Or visit the **[live demo](https://misia0517-dev.github.io/Waymo-Passenger-Safety-Assistant/)** directly.
-
----
-
-## Course Context
-
-Built for **UCLA Anderson MGMT 275** as part of an experimentation and evaluation exercise on AI-assisted product design. The prototype was designed to test whether proactive in-app safety controls meaningfully change passenger confidence during autonomous vehicle rides.
-
-**Researcher:** Mia Wu, UCLA Anderson School of Management
