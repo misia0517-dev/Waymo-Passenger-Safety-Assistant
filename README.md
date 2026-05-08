@@ -1,8 +1,8 @@
 # 🚖 Waymo Passenger Safety Assistant
 
-An interactive mobile prototype that reimagines passenger safety controls for Waymo One autonomous rides — built as a research prototype for UCLA MGMT 275.
+An interactive mobile prototype that reimagines passenger safety controls for Waymo One autonomous rides.
 
-**[🔗 Live Demo](https://misia0517-dev.github.io/Waymo-Passenger-Safety-Assistant/waymo_safety_prototype.html)**
+**[🔗 Live Demo](https://misia0517-dev.github.io/Waymo-Passenger-Safety-Assistant/)**
 
 ---
 
@@ -71,7 +71,7 @@ git clone https://github.com/misia0517-dev/Waymo-Passenger-Safety-Assistant.git
 open waymo_safety_prototype.html
 ```
 
-Or visit the **[live demo](https://misia0517-dev.github.io/Waymo-Passenger-Safety-Assistant/waymo_safety_prototype.html)** directly.
+Or visit the **[live demo](https://misia0517-dev.github.io/Waymo-Passenger-Safety-Assistant/)** directly.
 
 ---
 
