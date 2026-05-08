@@ -8,34 +8,34 @@ An interactive mobile prototype that reimagines passenger safety controls for Wa
 
 ## The Problem
 
-Late-night Waymo riders — especially women traveling alone — have no real-time way to intervene if something feels wrong. The car drives itself, and current options (calling 911, contacting support) require leaving the app and losing context.
+Late-night Waymo riders, especially women traveling alone, have no real-time way to intervene if something feels wrong. The car drives itself, and current options (calling 911, contacting support) require leaving the app and losing context.
 
 ## The Solution
 
-A proactive safety layer built directly into the ride UI. Passengers can act immediately without leaving the app — before a situation escalates.
+A proactive safety layer built directly into the ride UI. Passengers can act immediately without leaving the app, before a situation escalates.
 
 ---
 
 ## Features
 
 ### 🗺️ Live Ride Simulation
-Full journey phases with an animated night-mode map: **Waiting → En Route → Approaching → Arrived**. The car moves in real time, behavior updates at each intersection, and phase transitions happen automatically.
+Full journey phases with an animated night-mode map: **Waiting > En Route > Approaching > Arrived**. The car moves in real time, behavior updates at each intersection, and phase transitions happen automatically.
 
 ### 📍 Unsafe Drop-Off
-Flag a drop-off location that feels unsafe. Choose from vetted alternatives (well-lit storefronts, staffed hotel lobbies) — the car reroutes on the map in real time with an animated route preview.
+Flag a drop-off location that feels unsafe. Choose from vetted alternatives (well-lit storefronts, staffed hotel lobbies) and the car reroutes on the map in real time with an animated route preview.
 
 ### 🔄 Re-Route
-Request a new drop-off mid-trip. The reroute screen draws an animated teal route to the new destination; the main map updates immediately on confirm.
+Request a new drop-off mid-trip. The reroute screen draws an animated teal route to the new destination, and the main map updates immediately on confirm.
 
 ### 🆘 I'm in Danger
 One tap connects to a live safety agent. The prototype simulates the full sequence:
 1. Agent connects (~3s)
 2. Nearest police station located (~5.5s)
 3. Animated reroute preview drawn to SFPD Northern Station
-4. Car automatically navigates there — emergency banner stays visible with a cancel option
+4. Car automatically navigates there with an emergency banner and cancel option
 
 ### ⭐ Post-Ride Safety Survey
-A 30-second feedback form collects safety ratings and lets riders flag specific concerns. Responses feed directly into Waymo's safety data.
+A 30-second feedback form collects safety ratings and lets riders flag specific concerns.
 
 ---
 
@@ -46,7 +46,7 @@ A 30-second feedback form collects safety ratings and lets riders flag specific 
 | Car Arrived | Pickup confirmation, ETA share, Start Ride |
 | En Route | Live map, ETA countdown, safety controls |
 | Unsafe Drop-Off | Alternative locations, reroute animation |
-| I'm in Danger | Agent connect sequence → police station navigation |
+| I'm in Danger | Agent connect sequence > police station navigation |
 | Arrived | Door unlock, safety survey |
 
 Use the **nav buttons below the phone** to jump to any phase instantly.
@@ -55,7 +55,7 @@ Use the **nav buttons below the phone** to jump to any phase instantly.
 
 ## Built With
 
-- Vanilla HTML / CSS / JavaScript — no frameworks, no dependencies
+- Vanilla HTML / CSS / JavaScript (no frameworks, no dependencies)
 - HTML5 Canvas for animated map and reroute visualization
 - `requestAnimationFrame` animation loop
 - Single-file prototype (~1,400 lines)
