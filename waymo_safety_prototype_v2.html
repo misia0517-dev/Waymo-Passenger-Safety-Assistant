@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waymo Passenger Safety Assistant</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+/* ── Waymo brand tokens ──────────────────────────────────────────────────── */
+/* Blue  #1469FF  Teal  #00C8B1  Navy bg  #060E1F  Surface  #0C1A30  */
+/* Border #162C4A  Text-1 #FFFFFF  Text-2 #7BAED4  Muted #4A7294        */
+/* Danger #FF4545  Safe-green #00C8A0  Hover #0E2238                    */
+:root{
+  --bg:      #060E1F;
+  --surface: #0C1A30;
+  --card:    #0F2040;
+  --border:  #162C4A;
+  --blue:    #1469FF;
+  --teal:    #00C8B1;
+  --t1:      #FFFFFF;
+  --t2:      #7BAED4;
+  --t3:      #4A7294;
+  --ph:      #2A4862;
+  --hover:   #0E2238;
+  --danger:  #FF4545;
+  --grad:    linear-gradient(135deg,#1469FF,#00C8B1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:#111823;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,Arial,sans-serif;}
+.outer{display:flex;flex-direction:column;align-items:center;gap:10px;zoom:0.82;}
+.speed-row{display:flex;gap:8px;align-items:center;}
+.speed-btn{background:#1E2A3C;border:1px solid #2E3E54;color:#7BA0C8;padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;transition:background .2s;}
+.speed-btn.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+#frame{position:relative;width:393px;height:852px;background:var(--bg);border-radius:48px;overflow:hidden;box-shadow:0 32px 100px rgba(0,0,0,.9),0 0 0 10px #0D1520,0 0 0 11px #1E2D42;border:none;}
+
+/* ── Screens ── */
+.screen{position:absolute;top:0;left:0;width:100%;height:100%;display:none;flex-direction:column;}
+.screen.active{display:flex;}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SETUP SCREEN — Waymo dark navy (matches real app)
+   ══════════════════════════════════════════════════════════════════════ */
+#s-setup{background:#1C2438;justify-content:flex-start;padding:0;overflow:hidden;}
+
+/* Status bar */
+.setup-statusbar{display:flex;justify-content:space-between;align-items:center;padding:16px 24px 0;font-size:15px;font-weight:700;color:#fff;flex-shrink:0;}
+.setup-sb-icons{display:flex;align-items:center;gap:5px;}
+
+/* Scrollable body */
+.setup-body{flex:1;overflow-y:auto;padding:0 0 90px 0;-webkit-overflow-scrolling:touch;}
+
+/* Hero headline */
+.setup-hero{padding:24px 24px 0;}
+.setup-hero-head{font-size:34px;font-weight:800;color:#fff;line-height:1.2;margin-bottom:24px;text-align:center;}
+.setup-hero-head em{color:#fff;font-style:normal;}
+.setup-hero-head .arrival-time{color:var(--blue);}
+
+/* ── Single combined search pill ── */
+.setup-search-wrap{padding:0 20px;}
+.search-pill-row{position:relative;}
+.search-pill{
+  background:#263047;border-radius:50px;
+  display:flex;align-items:center;gap:12px;
+  padding:16px 20px;
+  border:none;
+  transition:background .2s;
+}
+.search-pill:focus-within{background:#2C3A55;}
+.spill-icon{font-size:16px;flex-shrink:0;color:#6B8AB0;}
+.spill-icon.pickup{color:#6B8AB0;}
+.spill-icon.dest{color:#6B8AB0;}
+.spill-sep{width:1px;height:22px;background:rgba(255,255,255,.1);flex-shrink:0;}
+.search-pill input{border:none;outline:none;background:transparent;flex:1;font-size:16px;color:#fff;font-family:-apple-system,Arial,sans-serif;}
+.search-pill input::placeholder{color:#6B8AB0;}
+.search-connector{width:2px;height:6px;background:rgba(255,255,255,.15);margin:0 0 0 38px;}
+
+/* Autocomplete suggestions — dark */
+.suggestions{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#1E2C42;border:1px solid rgba(255,255,255,.1);border-radius:18px;overflow:hidden;z-index:100;display:none;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.suggestion-item{padding:13px 18px;color:#fff;font-size:14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px;}
+.suggestion-item::before{content:'📍';font-size:12px;opacity:.5;}
+.suggestion-item:last-child{border-bottom:none;}
+.suggestion-item:hover{background:#263047;}
+
+/* Shortcut row */
+.setup-shortcuts{display:flex;gap:10px;padding:14px 20px 0;overflow-x:auto;scrollbar-width:none;}
+.setup-shortcuts::-webkit-scrollbar{display:none;}
+.shortcut-btn{background:#263047;border:none;border-radius:50px;padding:10px 18px;display:flex;align-items:center;gap:7px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:background .15s;}
+.shortcut-btn:active{background:#2C3A55;}
+
+/* Recent destinations — no card, straight on dark bg */
+.setup-recents{margin:10px 20px 0;}
+.recent-item{display:flex;align-items:center;gap:14px;padding:13px 4px;cursor:pointer;transition:opacity .15s;}
+.recent-item:not(:last-child){border-bottom:1px solid rgba(255,255,255,.07);}
+.recent-item:active{opacity:.7;}
+.recent-icon-wrap{width:36px;height:36px;border-radius:50%;background:#263047;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.recent-info{flex:1;min-width:0;}
+.recent-name{font-size:14px;font-weight:700;color:#fff;}
+.recent-addr{font-size:12px;color:#6B8AB0;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.recent-star{color:#3D506A;font-size:18px;flex-shrink:0;}
+
+/* Waymo feature card */
+.safety-highlight{margin:14px 20px 0;background:linear-gradient(135deg,#1469FF 0%,#00C8B1 100%);border-radius:18px;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;overflow:hidden;position:relative;}
+.safety-highlight-car{font-size:52px;opacity:.9;line-height:1;transform:translateX(4px);}
+.sh-tag{color:rgba(255,255,255,.75);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;margin-bottom:4px;}
+.sh-title{color:#fff;font-size:18px;font-weight:800;line-height:1.25;}
+.sh-sub{color:rgba(255,255,255,.7);font-size:11px;margin-top:5px;}
+
+/* Find Route button */
+.start-btn{display:block;margin:16px 20px 0;width:calc(100% - 40px);background:var(--blue);color:#fff;border:none;padding:17px;border-radius:50px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 6px 24px rgba(20,105,255,.35);transition:opacity .2s;}
+.start-btn:hover{opacity:.9;}
+.start-btn:disabled{opacity:.4;cursor:not-allowed;}
+.setup-error{color:#FF6B6B;font-size:13px;text-align:center;margin-top:10px;min-height:18px;padding:0 20px;}
+.setup-loading{color:#6B8AB0;font-size:13px;text-align:center;margin-top:8px;display:none;padding:0 20px;}
+
+/* Bottom nav — dark pill style */
+.setup-bottom-nav{position:absolute;bottom:0;left:0;right:0;display:flex;padding:10px 0 26px;z-index:5;background:rgba(20,28,44,.96);backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,.06);}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;}
+.nav-ico{font-size:20px;}
+.nav-label{font-size:10px;color:#4A6480;font-weight:600;}
+.nav-item.active .nav-label{color:#fff;}
+.nav-pin,.nav-car,.nav-help,.nav-user{}
+
+/* ── Ride screen ── */
+#s-ride{position:relative;}
+#map{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;}
+.leaflet-container{background:#050F1E;}
+
+/* ── Bottom sheet ── */
+#bottom-sheet{position:absolute;bottom:0;left:0;width:100%;z-index:5;background:rgba(6,14,31,.97);backdrop-filter:blur(16px);border-radius:22px 22px 0 0;border-top:1px solid rgba(255,255,255,.07);padding:10px 16px 26px;}
+.sheet-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px;}
+
+.dest-row{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+.dest-icon{width:40px;height:40px;border-radius:12px;background:rgba(20,105,255,.15);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;}
+.dest-text{flex:1;min-width:0;}
+.dest-name{color:var(--t1);font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dest-addr{color:var(--t2);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+.eta-chip{background:rgba(20,105,255,.18);border:1px solid rgba(20,105,255,.35);color:#6BAAFF;padding:5px 13px;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap;flex-shrink:0;}
+
+.progress-bar{height:3px;background:var(--border);border-radius:2px;margin-bottom:14px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--grad);border-radius:2px;transition:width .5s;}
+
+.safety-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.saf-btn{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:11px 4px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;transition:all .15s;}
+.saf-btn:active{transform:scale(.97);background:var(--hover);}
+.saf-btn .btn-icon{font-size:20px;}
+.saf-btn .btn-label{font-size:11px;font-weight:600;text-align:center;line-height:1.3;color:var(--t2);}
+.saf-btn.danger{background:rgba(255,69,69,.12);border-color:rgba(255,69,69,.3);}
+.saf-btn.danger .btn-label{color:#FF7070;}
+
+/* ── Arrived ── */
+#arrived-sheet{display:none;}
+.arrived-banner{background:var(--grad);border-radius:16px;padding:16px;display:flex;align-items:center;gap:12px;margin-bottom:14px;box-shadow:0 6px 20px rgba(20,105,255,.25);}
+.arrived-check{font-size:30px;}
+.arrived-title{color:#fff;font-size:16px;font-weight:700;}
+.arrived-sub{color:rgba(255,255,255,.8);font-size:12px;margin-top:2px;}
+.arrived-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.arr-btn{background:var(--card);border:1px solid var(--border);color:var(--t1);padding:13px;border-radius:13px;font-size:13px;font-weight:600;cursor:pointer;text-align:center;}
+.arr-btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;}
+.safe-window{background:rgba(0,200,177,.1);border:1px solid rgba(0,200,177,.25);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.safe-window-text{color:#4DD8C6;font-size:12px;}
+.safe-window-bold{color:#4DD8C6;font-weight:700;}
+
+/* ── Emergency banner ── */
+#emergency-banner{position:absolute;top:16px;left:16px;right:16px;z-index:8;display:none;background:rgba(185,30,30,.92);border-radius:14px;padding:12px 16px;backdrop-filter:blur(10px);border:1px solid rgba(255,80,80,.3);}
+.emg-row{display:flex;align-items:center;justify-content:space-between;}
+.emg-text{color:#fff;font-size:13px;font-weight:600;}
+.emg-sub{color:rgba(255,255,255,.7);font-size:11px;margin-top:2px;}
+.emg-cancel{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;}
+
+/* ── Overlays ── */
+.overlay{position:absolute;top:0;left:0;width:100%;height:100%;z-index:10;display:none;}
+.overlay.show{display:flex;}
+
+/* ── SOS overlay ── */
+#sos-overlay{background:rgba(3,10,23,.95);flex-direction:column;align-items:center;justify-content:center;padding:28px;}
+.sos-ring-wrap{position:relative;width:160px;height:160px;margin-bottom:24px;}
+.sos-ring-wrap svg{position:absolute;top:0;left:0;}
+.sos-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
+.sos-count{font-size:52px;font-weight:900;color:#fff;}
+.sos-title{color:var(--danger);font-size:22px;font-weight:700;margin-bottom:8px;}
+.sos-sub{color:var(--t3);font-size:14px;text-align:center;margin-bottom:32px;line-height:1.6;}
+.sos-cancel{background:var(--card);border:1.5px solid var(--border);color:var(--t1);padding:14px;border-radius:16px;font-size:16px;font-weight:600;cursor:pointer;width:100%;}
+.sos-cancel:hover{background:var(--hover);}
+
+/* ── Danger active overlay ── */
+#danger-overlay{background:var(--bg);flex-direction:column;padding:0;}
+.danger-header{display:flex;align-items:center;gap:12px;margin-bottom:24px;}
+.danger-back{background:var(--card);border:none;color:var(--t2);width:36px;height:36px;border-radius:10px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.danger-title{color:var(--danger);font-size:18px;font-weight:700;}
+.agent-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:20px;display:flex;align-items:center;gap:14px;}
+.agent-avatar{width:46px;height:46px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.agent-name{color:var(--t1);font-size:15px;font-weight:600;}
+.agent-status{color:var(--t2);font-size:12px;margin-top:3px;}
+.danger-timeline{display:flex;flex-direction:column;}
+.timeline-item{display:flex;gap:14px;align-items:flex-start;}
+.tl-dot-col{display:flex;flex-direction:column;align-items:center;}
+.tl-dot{width:12px;height:12px;border-radius:50%;background:var(--border);flex-shrink:0;margin-top:4px;}
+.tl-dot.active{background:var(--blue);box-shadow:0 0 8px rgba(20,105,255,.6);}
+.tl-dot.done{background:var(--teal);}
+.tl-line{width:2px;flex:1;background:var(--border);min-height:20px;}
+.tl-label{color:var(--t3);font-size:13px;margin-bottom:18px;}
+.tl-label.active{color:var(--t1);font-weight:600;}
+.tl-label.done{color:var(--teal);}
+.danger-cancel{background:var(--card);border:1px solid var(--border);color:var(--t3);padding:14px;border-radius:14px;font-size:15px;cursor:pointer;width:100%;}
+
+/* ── Places overlay ── */
+#places-overlay{position:absolute;bottom:0;left:0;width:100%;z-index:12;display:none;flex-direction:column;background:var(--bg);border-radius:22px 22px 0 0;border-top:1px solid var(--border);padding:10px 16px 28px;max-height:76%;}
+#places-overlay.show{display:flex;}
+.places-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px;}
+.places-title{color:var(--t1);font-size:16px;font-weight:700;margin-bottom:3px;}
+.places-sub{color:var(--t2);font-size:12px;margin-bottom:14px;}
+.places-list{overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
+.place-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s;}
+.place-card:active{transform:scale(.98);background:var(--hover);}
+.place-ico{font-size:24px;flex-shrink:0;}
+.place-name{color:var(--t1);font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.place-type{color:var(--t2);font-size:11px;margin-top:2px;}
+.place-dist{color:var(--t3);font-size:12px;flex-shrink:0;}
+.places-back{background:transparent;border:1px solid var(--border);color:var(--t2);padding:12px;border-radius:12px;font-size:14px;cursor:pointer;margin-top:12px;}
+
+/* ── Reroute confirm ── */
+#reroute-confirm{position:absolute;bottom:0;left:0;width:100%;z-index:13;display:none;flex-direction:column;background:var(--bg);border-radius:22px 22px 0 0;border-top:1px solid var(--border);padding:12px 16px 28px;}
+#reroute-confirm.show{display:flex;}
+.rc-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px;}
+.rc-title{color:var(--t1);font-size:16px;font-weight:700;margin-bottom:4px;}
+.rc-addr{color:var(--t2);font-size:13px;margin-bottom:16px;}
+.rc-info-row{display:flex;gap:10px;margin-bottom:16px;}
+.rc-info-chip{flex:1;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center;}
+.rc-info-val{color:var(--t1);font-size:17px;font-weight:700;}
+.rc-info-label{color:var(--t2);font-size:11px;margin-top:3px;}
+.rc-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.rc-btn{padding:14px;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;border:none;text-align:center;}
+.rc-btn.cancel{background:var(--card);color:var(--t3);border:1px solid var(--border);}
+.rc-btn.confirm{background:var(--blue);color:#fff;box-shadow:0 4px 16px rgba(20,105,255,.3);}
+
+/* ── Survey ── */
+#s-survey{background:var(--bg);padding:28px 24px;overflow-y:auto;flex-direction:column;}
+.survey-title{color:var(--t1);font-size:20px;font-weight:700;margin-bottom:4px;}
+.survey-sub{color:var(--t2);font-size:14px;margin-bottom:28px;}
+.survey-q{color:var(--t1);font-size:14px;font-weight:600;margin-bottom:10px;}
+.stars{display:flex;gap:8px;margin-bottom:24px;}
+.star{font-size:36px;cursor:pointer;opacity:.3;transition:opacity .15s,transform .15s;filter:grayscale(1);}
+.star.lit{opacity:1;filter:none;}
+.star:hover{transform:scale(1.12);}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px;}
+.chip{background:var(--card);border:1px solid var(--border);color:var(--t2);padding:8px 14px;border-radius:20px;font-size:13px;cursor:pointer;transition:all .15s;}
+.chip.selected{background:rgba(20,105,255,.18);border-color:rgba(20,105,255,.6);color:#6BAAFF;}
+.survey-submit{width:100%;background:var(--grad);border:none;color:#fff;padding:16px;border-radius:16px;font-size:16px;font-weight:700;cursor:pointer;margin-top:8px;box-shadow:0 6px 20px rgba(20,105,255,.25);}
+.survey-submit:disabled{opacity:.4;box-shadow:none;}
+
+/* ── Thank you ── */
+#s-thanks{background:var(--bg);align-items:center;justify-content:center;flex-direction:column;padding:40px 28px;text-align:center;}
+.thanks-icon{font-size:64px;margin-bottom:20px;}
+.thanks-title{color:var(--t1);font-size:24px;font-weight:700;margin-bottom:8px;}
+.thanks-sub{color:var(--t2);font-size:15px;line-height:1.6;margin-bottom:36px;}
+.thanks-new{background:var(--card);border:1px solid var(--border);color:var(--t2);padding:14px 32px;border-radius:16px;font-size:15px;font-weight:600;cursor:pointer;}
+
+/* ── Confirm / Ready screen ── */
+#s-confirm{background:var(--bg);justify-content:flex-start;padding:0;}
+.confirm-map-stub{height:270px;background:var(--surface);position:relative;overflow:hidden;}
+#confirm-map{width:100%;height:100%;}
+.confirm-body{padding:22px 24px 32px;display:flex;flex-direction:column;gap:0;flex:1;}
+.confirm-waymo{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+.confirm-logo{width:40px;height:40px;background:var(--grad);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#fff;box-shadow:0 4px 14px rgba(20,105,255,.3);}
+.confirm-title{color:var(--t1);font-size:18px;font-weight:700;}
+.confirm-route-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px;}
+.cr-row{display:flex;align-items:flex-start;gap:12px;padding:7px 0;}
+.cr-row+.cr-row{border-top:1px solid var(--border);}
+.cr-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:5px;}
+.cr-dot.pickup{background:var(--blue);}
+.cr-dot.dest{background:var(--teal);}
+.cr-label{color:var(--t3);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;font-weight:600;}
+.cr-val{color:var(--t1);font-size:13px;font-weight:500;line-height:1.3;}
+.confirm-meta{display:flex;gap:10px;margin-bottom:18px;}
+.meta-chip{flex:1;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center;}
+.meta-val{color:var(--t1);font-size:18px;font-weight:700;}
+.meta-label{color:var(--t2);font-size:11px;margin-top:3px;}
+.start-ride-btn{width:100%;background:var(--grad);color:#fff;border:none;padding:18px;border-radius:18px;font-size:17px;font-weight:700;cursor:pointer;letter-spacing:.02em;box-shadow:0 8px 24px rgba(20,105,255,.35);}
+.start-ride-btn:hover{opacity:.9;}
+
+/* ── Reroute search overlay ── */
+#reroute-search{
+  position:absolute;bottom:0;left:0;width:100%;z-index:12;display:none;
+  flex-direction:column;background:#131E32;
+  border-radius:28px 28px 0 0;border-top:none;
+  padding:10px 20px 32px;max-height:80%;
+  box-shadow:0 -12px 40px rgba(0,0,0,.5);
+}
+#reroute-search.show{display:flex;}
+.rs-handle{width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 20px;}
+.rs-header{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+.rs-back-btn{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.08);border:none;color:var(--t2);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.rs-back-btn:hover{background:rgba(255,255,255,.14);}
+.rs-header-text{}
+.rs-title{color:var(--t1);font-size:18px;font-weight:700;margin-bottom:1px;}
+.rs-sub{color:var(--t2);font-size:12px;}
+.rs-input-wrap{position:relative;}
+.rs-search-pill{
+  background:#1E2D45;border:1.5px solid rgba(255,255,255,.1);
+  border-radius:50px;display:flex;align-items:center;gap:12px;
+  padding:14px 18px;transition:border-color .2s;
+}
+.rs-search-pill:focus-within{border-color:var(--blue);}
+.rs-search-icon{color:#6B8AB0;font-size:16px;flex-shrink:0;}
+.rs-search-pill input{
+  border:none;outline:none;background:transparent;
+  flex:1;font-size:15px;color:#fff;font-family:-apple-system,Arial,sans-serif;
+}
+.rs-search-pill input::placeholder{color:#6B8AB0;}
+.rs-sugg{
+  /* Flow inside the panel — NOT absolutely positioned — so it never gets clipped */
+  position:static;
+  margin-top:10px;
+  background:#1A2840;border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;overflow:hidden;
+  display:none;
+}
+.rs-sugg-item{
+  padding:14px 18px;color:var(--t1);font-size:14px;
+  cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex;align-items:center;gap:10px;
+}
+.rs-sugg-item::before{content:'📍';font-size:12px;opacity:.5;}
+.rs-sugg-item:last-child{border-bottom:none;}
+.rs-sugg-item:active{background:rgba(255,255,255,.06);}
+.rs-back{display:none;}
+
+/* ── Loading overlay ── */
+#loading-overlay{position:absolute;top:0;left:0;width:100%;height:100%;z-index:20;background:rgba(6,14,31,.94);display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+#loading-overlay.show{display:flex;}
+.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{color:var(--t2);font-size:14px;}
+
+/* ── Car marker ── */
+.car-marker-div{width:34px;height:34px;background:linear-gradient(135deg,#1A73E8,#00BFA5);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;border:2.5px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.5);}
+.dest-marker-div{width:28px;height:28px;background:#f28b82;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);border:2.5px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.5);}
+.dest-inner{width:10px;height:10px;background:#fff;border-radius:50%;transform:rotate(45deg);}
+
+/* ── Return to car ── */
+.return-car-btn{background:rgba(0,200,177,.15)!important;border:1.5px solid rgba(0,200,177,.5)!important;color:var(--teal)!important;font-weight:700!important;}
+.return-car-btn:hover{background:rgba(0,200,177,.25)!important;}
+@keyframes pulse-green{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(1.4);}}
+</style>
+</head>
+<body>
+<div class="outer">
+  <div id="frame">
+
+    <!-- ═══ SETUP SCREEN ═══ -->
+    <div id="s-setup" class="screen active">
+
+      <!-- Status bar -->
+      <div class="setup-statusbar">
+        <span>9:41</span>
+        <div class="setup-sb-icons">
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="#111827"><rect x="0" y="3" width="3" height="9" rx="1"/><rect x="4.5" y="2" width="3" height="10" rx="1"/><rect x="9" y="0" width="3" height="12" rx="1"/><rect x="13.5" y="0" width="2.5" height="12" rx="1"/></svg>
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="none"><rect x="0" y="0" width="15" height="12" rx="2" stroke="#111827" stroke-width="1.2"/><rect x="15.5" y="3.5" width="2" height="5" rx="1" fill="#111827"/><rect x="1" y="1" width="10" height="10" rx="1.5" fill="#111827"/></svg>
+        </div>
+      </div>
+
+      <!-- Scrollable body -->
+      <div class="setup-body">
+
+        <!-- Hero -->
+        <div class="setup-hero">
+          <div class="setup-hero-head">Where to,<br><em>Mia?</em></div>
+        </div>
+
+        <!-- Search pills -->
+        <div class="setup-search-wrap">
+          <div class="search-pill-row" style="position:relative;">
+            <div class="search-pill">
+              <span class="spill-icon pickup">●</span>
+              <input id="pickup-input" type="text" placeholder="Pickup address" autocomplete="off">
+            </div>
+            <div id="pickup-sugg" class="suggestions"></div>
+          </div>
+          <div class="search-connector"></div>
+          <div class="search-pill-row" style="position:relative;">
+            <div class="search-pill">
+              <span class="spill-icon dest">■</span>
+              <input id="dest-input" type="text" placeholder="Where to?" autocomplete="off">
+            </div>
+            <div id="dest-sugg" class="suggestions"></div>
+          </div>
+        </div>
+
+        <!-- Shortcuts -->
+        <div class="setup-shortcuts">
+          <button class="shortcut-btn" onclick="quickFill('Home','1 Market St, San Francisco, CA')">🏠 Home</button>
+          <button class="shortcut-btn" onclick="quickFill('Work','345 Spear St, San Francisco, CA')">💼 Work</button>
+        </div>
+
+        <!-- Recent destinations -->
+        <div class="setup-recents">
+          <div style="padding:4px 4px 10px;color:rgba(255,255,255,.3);font-size:11px;font-weight:600;letter-spacing:.06em;">Recent</div>
+          <div class="recent-item" onclick="quickFillDest('Chase Center, 1 Warriors Way, San Francisco, CA')">
+            <div class="recent-icon-wrap">🕐</div>
+            <div class="recent-info">
+              <div class="recent-name">Chase Center</div>
+              <div class="recent-addr">1 Warriors Way, San Francisco</div>
+            </div>
+            <span class="recent-star">☆</span>
+          </div>
+          <div class="recent-item" onclick="quickFillDest('San Francisco International Airport, San Francisco, CA')">
+            <div class="recent-icon-wrap">🕐</div>
+            <div class="recent-info">
+              <div class="recent-name">San Francisco Airport</div>
+              <div class="recent-addr">780 S Airport Blvd, San Francisco</div>
+            </div>
+            <span class="recent-star">☆</span>
+          </div>
+        </div>
+
+        <!-- Safety assistant highlight card -->
+        <div class="safety-highlight">
+          <div>
+            <div class="sh-tag">Waymo Safety</div>
+            <div class="sh-title">Passenger Safety<br>Assistant</div>
+            <div class="sh-sub">Danger alerts · Safe rerouting · 24/7 Agent</div>
+          </div>
+          <div class="safety-highlight-car">🚗</div>
+        </div>
+
+        <!-- Find Route button -->
+        <button id="start-btn" class="start-btn" onclick="handleStart()">Find Route &amp; Start Ride →</button>
+        <div id="setup-error" class="setup-error"></div>
+        <div id="setup-loading" class="setup-loading">Looking up route…</div>
+
+      </div><!-- /.setup-body -->
+
+      <!-- Bottom nav -->
+      <div class="setup-bottom-nav">
+        <div class="nav-item active">
+          <span class="nav-ico nav-pin">📍</span>
+          <span class="nav-label">Ride</span>
+        </div>
+        <div class="nav-item">
+          <span class="nav-ico nav-car">🚗</span>
+          <span class="nav-label">Activity</span>
+        </div>
+        <div class="nav-item">
+          <span class="nav-ico nav-help">❓</span>
+          <span class="nav-label">Help</span>
+        </div>
+        <div class="nav-item">
+          <span class="nav-ico nav-user">👤</span>
+          <span class="nav-label">Account</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══ CONFIRM / READY SCREEN ═══ -->
+    <div id="s-confirm" class="screen">
+      <div class="confirm-map-stub">
+        <div id="confirm-map"></div>
+      </div>
+      <div class="confirm-body">
+        <div class="confirm-waymo">
+          <div class="confirm-logo">W</div>
+          <div class="confirm-title">Your ride is ready</div>
+        </div>
+        <div class="confirm-route-card">
+          <div class="cr-row">
+            <div class="cr-dot pickup"></div>
+            <div>
+              <div class="cr-label">Pickup</div>
+              <div class="cr-val" id="cr-pickup">---</div>
+            </div>
+          </div>
+          <div class="cr-row">
+            <div class="cr-dot dest"></div>
+            <div>
+              <div class="cr-label">Destination</div>
+              <div class="cr-val" id="cr-dest">---</div>
+            </div>
+          </div>
+        </div>
+        <div class="confirm-meta">
+          <div class="meta-chip">
+            <div class="meta-val" id="cr-dist">--</div>
+            <div class="meta-label">Distance</div>
+          </div>
+          <div class="meta-chip">
+            <div class="meta-val" id="cr-eta">--</div>
+            <div class="meta-label">Est. Time</div>
+          </div>
+        </div>
+        <button class="start-ride-btn" onclick="beginRide()">Start the Ride →</button>
+      </div>
+    </div>
+
+    <!-- ═══ RIDE SCREEN ═══ -->
+    <div id="s-ride" class="screen">
+      <div id="map"></div>
+
+      <!-- Emergency banner (persists on map) -->
+      <div id="emergency-banner">
+        <div class="emg-row">
+          <div>
+            <div class="emg-text">🚔 Navigating to Police Station</div>
+            <div id="emg-dest" class="emg-sub">---</div>
+          </div>
+          <button class="emg-cancel" onclick="cancelEmergency()">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Bottom sheet -->
+      <div id="bottom-sheet">
+        <div class="sheet-handle"></div>
+
+        <!-- En route / Approaching panel -->
+        <div id="enroute-panel">
+          <div class="dest-row">
+            <div class="dest-icon" id="dest-icon-el">📍</div>
+            <div class="dest-text">
+              <div class="dest-name" id="dest-name-el">---</div>
+              <div class="dest-addr" id="dest-addr-el">---</div>
+            </div>
+            <div class="eta-chip" id="eta-chip">-- min</div>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+          <div class="safety-btns">
+            <button class="saf-btn" id="unsafe-btn" onclick="showUnsafeDropoff()" style="opacity:.35;pointer-events:none;" title="Available when approaching destination">
+              <span class="btn-icon">⚠️</span>
+              <span class="btn-label">Unsafe<br>Drop-Off</span>
+            </button>
+            <button class="saf-btn" onclick="showRerouteList()">
+              <span class="btn-icon">🔀</span>
+              <span class="btn-label">Re-Route</span>
+            </button>
+            <button class="saf-btn danger" onclick="triggerDanger()">
+              <span class="btn-icon">🆘</span>
+              <span class="btn-label">I'm in<br>Danger</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Arrived panel -->
+        <div id="arrived-panel" style="display:none">
+          <div class="arrived-banner">
+            <span class="arrived-check">✓</span>
+            <div class="arrived-text">
+              <div class="arrived-title">You've Arrived</div>
+              <div class="arrived-sub" id="arrived-dest-name">---</div>
+            </div>
+          </div>
+          <div class="safe-window" id="safe-window-row">
+            <span>🔓</span>
+            <div class="safe-window-text">
+              <span class="safe-window-bold">Safe Return Window</span> — re-board within 5 min at no charge
+            </div>
+          </div>
+          <!-- Return to Car unlock flow -->
+          <div id="unlock-row" style="display:none;flex-direction:column;gap:8px;margin-bottom:10px;">
+            <!-- Unlocked status bar -->
+            <div style="display:flex;align-items:center;gap:10px;background:rgba(0,200,177,.12);border:1px solid rgba(0,200,177,.35);border-radius:14px;padding:11px 14px;">
+              <span style="font-size:20px;">🚗</span>
+              <div style="flex:1;min-width:0;">
+                <div style="color:var(--teal);font-size:14px;font-weight:700;" id="unlock-status-text">Door Unlocked</div>
+                <div style="color:var(--t2);font-size:12px;margin-top:2px;" id="unlock-timer-text">You have 30 seconds to board</div>
+              </div>
+              <div id="unlock-pulse" style="width:12px;height:12px;border-radius:50%;background:var(--teal);animation:pulse-green 1.2s infinite;"></div>
+            </div>
+            <!-- Lock Door button (shown while door is open) -->
+            <button id="lock-door-btn" onclick="lockDoorNow()" style="width:100%;background:rgba(0,200,177,.15);border:1.5px solid rgba(0,200,177,.4);color:var(--teal);padding:12px;border-radius:13px;font-size:14px;font-weight:700;cursor:pointer;">🔒 I'm in — Lock the Door</button>
+          </div>
+          <div class="arrived-btns">
+            <div class="arr-btn" onclick="showSurvey()">Rate Ride</div>
+            <div class="arr-btn return-car-btn" id="return-car-btn" onclick="unlockCarDoor()">🔓 Return to Car</div>
+            <div class="arr-btn primary" onclick="showSurvey()">Done</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SOS Countdown overlay ── -->
+      <div id="sos-overlay" class="overlay">
+        <div class="sos-title">I'm in Danger</div>
+        <div class="sos-sub">Connecting to a Waymo Safety Agent.<br>Cancel within 5 seconds to stop.</div>
+        <div class="sos-ring-wrap">
+          <svg width="160" height="160" viewBox="0 0 160 160">
+            <circle cx="80" cy="80" r="70" fill="none" stroke="#2a2a2a" stroke-width="8"/>
+            <circle id="sos-ring" cx="80" cy="80" r="70" fill="none" stroke="#f28b82" stroke-width="8"
+              stroke-dasharray="439.82" stroke-dashoffset="0"
+              stroke-linecap="round" transform="rotate(-90 80 80)"
+              style="transition:none;"/>
+          </svg>
+          <div class="sos-center">
+            <div class="sos-count" id="sos-count">5</div>
+          </div>
+        </div>
+        <button class="sos-cancel" onclick="cancelSOS()">Cancel — Do Not Contact Anyone</button>
+      </div>
+
+      <!-- ── Danger active overlay ── -->
+      <div id="danger-overlay" class="overlay" style="flex-direction:column;padding:0;">
+        <div style="flex:1;overflow-y:auto;padding:28px 24px;">
+          <div class="danger-header">
+            <button class="danger-back" onclick="cancelDangerOverlay()">✕</button>
+            <div class="danger-title">🚨 Emergency Response</div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-avatar">👮</div>
+            <div class="agent-info">
+              <div class="agent-name">Agent Sarah</div>
+              <div class="agent-status" id="agent-status">Connecting...</div>
+            </div>
+          </div>
+          <div class="danger-timeline">
+            <div class="timeline-item">
+              <div class="tl-dot-col"><div class="tl-dot" id="tl1"></div><div class="tl-line"></div></div>
+              <div class="tl-text"><div class="tl-label" id="tl1-label">Safety Agent connecting</div></div>
+            </div>
+            <div class="timeline-item">
+              <div class="tl-dot-col"><div class="tl-dot" id="tl2"></div><div class="tl-line"></div></div>
+              <div class="tl-text"><div class="tl-label" id="tl2-label">Locating nearest police station</div></div>
+            </div>
+            <div class="timeline-item">
+              <div class="tl-dot-col"><div class="tl-dot" id="tl3"></div></div>
+              <div class="tl-text"><div class="tl-label" id="tl3-label">Vehicle rerouting to police station</div></div>
+            </div>
+          </div>
+          <div style="margin-top:20px;background:#1e2d42;border-radius:12px;padding:14px;" id="police-info-card" style="display:none">
+            <div style="color:#8ab4f8;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Rerouting to</div>
+            <div style="color:#fff;font-size:15px;font-weight:600;" id="police-name">---</div>
+            <div style="color:#9aa0a6;font-size:13px;margin-top:2px;" id="police-addr">---</div>
+          </div>
+        </div>
+        <!-- 5-second cancel window (visible immediately, disappears after 5s) -->
+        <div id="danger-cancel-row" style="padding:0 24px 28px;">
+          <button id="danger-cancel-btn" onclick="cancelDangerEarly()" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--t2);padding:0;border-radius:14px;font-size:15px;cursor:pointer;overflow:hidden;">
+            <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+              <span>Cancel — <span id="danger-cancel-secs">5</span>s remaining</span>
+              <span style="font-size:12px;color:var(--t3);">Tap to stop</span>
+            </div>
+            <div style="height:3px;background:var(--border);border-radius:0 0 14px 14px;overflow:hidden;">
+              <div id="danger-cancel-bar" style="height:100%;width:100%;background:var(--danger);transition:width 1s linear;border-radius:inherit;"></div>
+            </div>
+          </button>
+          <!-- After cancel window: plain cancel only (no I'm Safe here) -->
+          <div id="danger-cancel-plain" style="display:none;flex-direction:column;gap:10px;">
+            <button onclick="cancelDangerOverlay()" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--t3);padding:14px;border-radius:14px;font-size:14px;cursor:pointer;">Cancel Emergency Response</button>
+          </div>
+          <!-- I'm Safe — only shown when returning from banner cancel -->
+          <div id="confirm-safe-row" style="display:none;padding-top:0;">
+            <button onclick="confirmSafe()" style="width:100%;background:linear-gradient(135deg,#00C8B1,#009e8d);border:none;color:#fff;padding:16px;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span style="font-size:18px;">✓</span> I'm Safe — Resume Original Route
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Places overlay (sheet from bottom) ── -->
+      <div id="places-overlay">
+        <div class="places-handle"></div>
+        <div class="places-title" id="places-title">Safe Drop-Off Locations</div>
+        <div class="places-sub" id="places-sub">Tap a location to reroute there</div>
+        <div class="places-list" id="places-list"></div>
+        <button class="places-back" onclick="hidePlaces()">← Back to Ride</button>
+      </div>
+
+      <!-- ── Safe Drop-Off Prompt (after boarding) ── -->
+      <div id="safe-dropoff-prompt" style="display:none;position:absolute;bottom:0;left:0;width:100%;z-index:14;flex-direction:column;background:#131E32;border-radius:28px 28px 0 0;padding:14px 20px 32px;box-shadow:0 -12px 40px rgba(0,0,0,.5);">
+        <div style="width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 20px;"></div>
+        <div style="font-size:22px;margin-bottom:10px;text-align:center;">🛡️</div>
+        <div style="color:#fff;font-size:17px;font-weight:700;text-align:center;margin-bottom:6px;">You're safely in the car</div>
+        <div style="color:var(--t2);font-size:13px;text-align:center;margin-bottom:22px;line-height:1.5;">Would you like to be driven to a<br>safer drop-off location nearby?</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <button onclick="dismissSafeDropoffPrompt()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:var(--t2);padding:14px;border-radius:16px;font-size:14px;font-weight:600;cursor:pointer;">No, stay here</button>
+          <button onclick="acceptSafeDropoff()" style="background:var(--blue);border:none;color:#fff;padding:14px;border-radius:16px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(20,105,255,.35);">Yes, find one →</button>
+        </div>
+      </div>
+
+      <!-- ── Reroute confirm ── -->
+      <div id="reroute-confirm">
+        <div class="rc-handle"></div>
+        <div class="rc-title" id="rc-title">Rerouting to New Destination</div>
+        <div class="rc-addr" id="rc-addr">---</div>
+        <div class="rc-info-row">
+          <div class="rc-info-chip">
+            <div class="rc-info-val" id="rc-dist">--</div>
+            <div class="rc-info-label">Distance</div>
+          </div>
+          <div class="rc-info-chip">
+            <div class="rc-info-val" id="rc-eta">--</div>
+            <div class="rc-info-label">Est. Time</div>
+          </div>
+        </div>
+        <div class="rc-btns">
+          <button class="rc-btn cancel" onclick="cancelRerouteConfirm()">Cancel</button>
+          <button class="rc-btn confirm" onclick="confirmReroute()">Confirm</button>
+        </div>
+      </div>
+
+      <!-- ── Reroute search (text input) ── -->
+      <div id="reroute-search">
+        <div class="rs-handle"></div>
+        <div class="rs-header">
+          <button class="rs-back-btn" onclick="hideRerouteSearch()">←</button>
+          <div class="rs-header-text">
+            <div class="rs-title">Re-Route</div>
+            <div class="rs-sub">Search for a new destination</div>
+          </div>
+        </div>
+        <div class="rs-input-wrap">
+          <div class="rs-search-pill">
+            <span class="rs-search-icon">🔍</span>
+            <input id="reroute-input" type="text" placeholder="Where do you want to go?" autocomplete="off">
+          </div>
+          <div id="reroute-sugg" class="rs-sugg"></div>
+        </div>
+      </div>
+
+      <!-- ── Loading overlay ── -->
+      <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loading-text">Finding safe locations...</div>
+      </div>
+    </div>
+
+    <!-- ═══ SURVEY SCREEN ═══ -->
+    <div id="s-survey" class="screen" style="background:#0f1724;padding:28px 24px;overflow-y:auto;flex-direction:column;">
+      <div class="survey-title">How was your ride?</div>
+      <div class="survey-sub">Your feedback improves Waymo safety for everyone.</div>
+      <div class="survey-q">Overall safety rating</div>
+      <div class="stars" id="stars">
+        <span class="star" data-v="1" onclick="rateStar(1)">⭐</span>
+        <span class="star" data-v="2" onclick="rateStar(2)">⭐</span>
+        <span class="star" data-v="3" onclick="rateStar(3)">⭐</span>
+        <span class="star" data-v="4" onclick="rateStar(4)">⭐</span>
+        <span class="star" data-v="5" onclick="rateStar(5)">⭐</span>
+      </div>
+      <div class="survey-q">Did anything feel unsafe?</div>
+      <div class="chips">
+        <span class="chip" onclick="toggleChip(this)">Drop-off location</span>
+        <span class="chip" onclick="toggleChip(this)">Route taken</span>
+        <span class="chip" onclick="toggleChip(this)">Surroundings</span>
+        <span class="chip" onclick="toggleChip(this)">Nothing felt wrong</span>
+      </div>
+      <div class="survey-q">Did the safety buttons help?</div>
+      <div class="chips">
+        <span class="chip" data-group="help" onclick="toggleChipSingle(this,'help')">Yes, they helped</span>
+        <span class="chip" data-group="help" onclick="toggleChipSingle(this,'help')">Didn't need them</span>
+        <span class="chip" data-group="help" onclick="toggleChipSingle(this,'help')">Didn't notice them</span>
+      </div>
+      <button class="survey-submit" id="survey-submit" onclick="submitSurvey()" disabled>Submit Feedback</button>
+    </div>
+
+    <!-- ═══ THANK YOU SCREEN ═══ -->
+    <div id="s-thanks" class="screen" style="background:#0f1724;align-items:center;justify-content:center;flex-direction:column;padding:40px 28px;text-align:center;">
+      <div class="thanks-icon">💚</div>
+      <div class="thanks-title">Thank You, Mia</div>
+      <div class="thanks-sub">Your feedback helps make every Waymo ride safer. Stay safe out there.</div>
+      <button class="thanks-new" onclick="resetApp()">← New Ride</button>
+    </div>
+
+  </div><!-- #frame -->
+
+  <!-- Speed controls outside frame -->
+  <div class="speed-row">
+    <span style="color:#5f6368;font-size:13px;">Demo speed:</span>
+    <button class="speed-btn" onclick="setSpeed(1)">1×</button>
+    <button class="speed-btn active" id="spd2" onclick="setSpeed(2)">2×</button>
+    <button class="speed-btn" onclick="setSpeed(5)">5×</button>
+    <button class="speed-btn" onclick="setSpeed(10)">10×</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
+let map = null;
+let carMarker = null;
+let destMarker = null;
+let routePolyline = null;
+let previewPolyline = null;
+let routeCoords = [];    // [[lat,lon],...]
+let routeIdx = 0;
+let animTimer = null;
+let animSpeed = 2;        // multiplier
+let totalDuration = 0;   // seconds from OSRM
+let totalDistance = 0;   // meters
+let pickupCoords = null; // {lat,lon}
+let destCoords = null;
+let currentDestName = '';
+let currentDestAddr = '';
+let currentCarLat = 0;
+let currentCarLon = 0;
+let currentPhase = 'enroute';
+let dangerActive = false;
+let dangerTimers = [];
+
+// Saved original destination before emergency reroute
+let _savedDestCoords = null;
+let _savedDestName = '';
+let _savedDestAddr = '';
+let _savedRouteCoords = [];
+let _savedRouteIdx = 0;
+let _savedTotalDuration = 0;
+let _savedTotalDistance = 0;
+
+// SOS
+let sosTimer = null;
+let sosCountdown = 5;
+const SOS_CIRC = 439.82;
+
+// Pending reroute
+let pendingReroute = null;
+let placesMode = ''; // 'unsafe' | 'reroute'
+
+// Nominatim debounce
+let pickupTimeout = null, destTimeout = null;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════════════
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function fmtDist(m){return m<1000?Math.round(m)+' m':(m/1000).toFixed(1)+' km';}
+function fmtMin(s){const m=Math.ceil(s/60);return m<60?m+' min':Math.floor(m/60)+'h '+(m%60)+'m';}
+function fmtSecAsMin(s){return Math.max(1,Math.ceil(s/60))+' min';}
+function setEl(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function showEl(id){const e=document.getElementById(id);if(e)e.style.display='flex';}
+function hideEl(id){const e=document.getElementById(id);if(e)e.style.display='none';}
+function showFlexEl(id){const e=document.getElementById(id);if(e)e.style.display='flex';}
+
+const AMENITY_ICON = {police:'🚔',pharmacy:'💊',hospital:'🏥',fire_station:'🚒',convenience:'🏪',supermarket:'🛒',bank:'🏦',default:'📍'};
+const AMENITY_LABEL = {police:'Police Station',pharmacy:'Pharmacy / Drug Store',hospital:'Hospital',fire_station:'Fire Station',convenience:'Convenience Store',supermarket:'Supermarket',bank:'Bank (24h ATM)',default:'Safe Location'};
+function placeTypeFromTags(tags){
+  if(!tags) return 'default';
+  if(tags.amenity==='police'||tags.amenity==='police station') return 'police';
+  if(tags.amenity==='hospital') return 'hospital';
+  if(tags.amenity==='pharmacy'||tags.amenity==='drugstore') return 'pharmacy';
+  if(tags.amenity==='fire_station') return 'fire_station';
+  if(tags.amenity==='bank') return 'bank';
+  // Brand-name pharmacies
+  const brand=(tags.brand||tags.name||'').toLowerCase();
+  if(brand.includes('cvs')||brand.includes('walgreens')||brand.includes('rite aid')||brand.includes('pharmacy')) return 'pharmacy';
+  if(brand.includes('police')) return 'police';
+  if(brand.includes('hospital')||brand.includes('medical')) return 'hospital';
+  if(tags.shop==='convenience'||tags.brand==='7-Eleven'||tags.brand==='FamilyMart'||tags.brand==='7-11'||tags['brand:en']==='FamilyMart') return 'convenience';
+  if(tags.shop==='supermarket') return 'supermarket';
+  if(tags.shop==='convenience'||tags.shop==='chemist') return 'convenience';
+  return 'default';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// API CALLS
+// ═══════════════════════════════════════════════════════════════════════════
+async function nominatimSearch(q){
+  // No custom headers — keeps this a simple CORS request (no preflight)
+  const url=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`;
+  const r=await fetch(url);
+  if(!r.ok) throw new Error('Nominatim HTTP '+r.status);
+  return r.json();
+}
+async function getRoute(fLat,fLon,toLat,toLon){
+  const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${fLon},${fLat};${toLon},${toLat}?overview=full&geometries=geojson`);
+  const d=await r.json();
+  if(!d.routes||!d.routes.length) throw new Error('No route found');
+  const route=d.routes[0];
+  // OSRM returns [lon,lat]; convert to [lat,lon] for Leaflet
+  const coords=route.geometry.coordinates.map(c=>[c[1],c[0]]);
+  return {coords,duration:route.duration,distance:route.distance};
+}
+async function overpassQuery(query){
+  const r=await fetch('https://overpass-api.de/api/interpreter',{
+    method:'POST',
+    body:'data='+encodeURIComponent(query),
+    headers:{'Content-Type':'application/x-www-form-urlencoded'}
+  });
+  return r.json();
+}
+async function findSafePlaces(lat,lon,radius=2000){
+  // Strategy 1: Overpass — broad query for police, pharmacy, hospital, convenience stores
+  let results=[];
+  try{
+    const q=`[out:json][timeout:20];(
+node["amenity"="police"](around:${radius},${lat},${lon});
+way["amenity"="police"](around:${radius},${lat},${lon});
+node["amenity"="hospital"](around:${radius},${lat},${lon});
+way["amenity"="hospital"](around:${radius},${lat},${lon});
+node["amenity"="pharmacy"](around:${radius},${lat},${lon});
+way["amenity"="pharmacy"](around:${radius},${lat},${lon});
+node["amenity"="fire_station"](around:${radius},${lat},${lon});
+node["shop"="convenience"](around:${radius},${lat},${lon});
+way["shop"="convenience"](around:${radius},${lat},${lon});
+node["shop"="supermarket"](around:${radius},${lat},${lon});
+node["brand"="7-Eleven"](around:${radius},${lat},${lon});
+node["brand"="CVS"](around:${radius},${lat},${lon});
+node["brand"="Walgreens"](around:${radius},${lat},${lon});
+node["brand"="Rite Aid"](around:${radius},${lat},${lon});
+node["amenity"="bank"](around:800,${lat},${lon});
+);out center 30;`;
+    const d=await overpassQuery(q);
+    const els=d.elements||[];
+    const seen=new Set();
+    results=els.filter(e=>{
+      const lat2=e.center?e.center.lat:e.lat;
+      const lon2=e.center?e.center.lon:e.lon;
+      if(!lat2||!lon2) return false;
+      const key=`${(e.tags&&e.tags.name)||''}|${Math.round((lat2||0)*1000)}|${Math.round((lon2||0)*1000)}`;
+      if(seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+  }catch(e){ results=[]; }
+
+  // Strategy 2: Nominatim keyword fallback if Overpass returned too few
+  if(results.length<3){
+    const terms=['police station','pharmacy','hospital','CVS pharmacy','Walgreens','convenience store'];
+    const nominatimResults=[];
+    for(const term of terms){
+      try{
+        const r=await nominatimSearch(`${term} near ${lat},${lon}`);
+        r.slice(0,2).forEach(item=>{
+          const iLat=parseFloat(item.lat), iLon=parseFloat(item.lon);
+          if(haversine(lat,lon,iLat,iLon)>radius*1.5) return; // skip too far
+          nominatimResults.push({
+            lat:iLat, lon:iLon,
+            tags:{
+              name:item.display_name.split(',')[0],
+              amenity: term.includes('police')?'police':term.includes('pharmacy')||term.includes('CVS')||term.includes('Walgreens')?'pharmacy':term.includes('hospital')?'hospital':term.includes('convenience')?'shop':'bank',
+            }
+          });
+        });
+      }catch(e){}
+    }
+    // Merge and deduplicate by lat proximity
+    const seen2=new Set(results.map(e=>{
+      const lt=e.center?e.center.lat:e.lat, ln=e.center?e.center.lon:e.lon;
+      return `${Math.round(lt*1000)}|${Math.round(ln*1000)}`;
+    }));
+    nominatimResults.forEach(nr=>{
+      const key=`${Math.round(nr.lat*1000)}|${Math.round(nr.lon*1000)}`;
+      if(!seen2.has(key)){seen2.add(key);results.push(nr);}
+    });
+  }
+  return results;
+}
+async function findPoliceStation(lat,lon){
+  let q=`[out:json][timeout:10];(node["amenity"="police"](around:5000,${lat},${lon});way["amenity"="police"](around:5000,${lat},${lon}););out center 5;`;
+  let d=await overpassQuery(q);
+  if(!d.elements||d.elements.length===0){
+    // expand radius
+    q=`[out:json][timeout:10];(node["amenity"="police"](around:15000,${lat},${lon});way["amenity"="police"](around:15000,${lat},${lon}););out center 3;`;
+    d=await overpassQuery(q);
+  }
+  return d.elements||[];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAP SETUP
+// ═══════════════════════════════════════════════════════════════════════════
+function initMap(lat,lon){
+  if(map) return;
+  map=L.map('map',{zoomControl:false,attributionControl:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:18}).addTo(map);
+  map.setView([lat,lon],14);
+}
+function makeCarIcon(){
+  return L.divIcon({html:'<div class="car-marker-div">W</div>',iconSize:[34,34],iconAnchor:[17,17],className:''});
+}
+function makeDestIcon(){
+  return L.divIcon({
+    html:'<div style="font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6));">📍</div>',
+    iconSize:[28,28],iconAnchor:[14,26],className:''
+  });
+}
+function drawRouteOnMap(coords,color='#1A73E8',weight=4,dashArray=null){
+  if(routePolyline) map.removeLayer(routePolyline);
+  routePolyline=L.polyline(coords,{color,weight,opacity:.85,dashArray}).addTo(map);
+  if(!previewPolyline) map.fitBounds(routePolyline.getBounds(),{padding:[40,40]});
+}
+function drawPreviewOnMap(coords){
+  if(previewPolyline) map.removeLayer(previewPolyline);
+  previewPolyline=L.polyline(coords,{color:'#00BFA5',weight:4,opacity:.9,dashArray:'8,6'}).addTo(map);
+}
+function clearPreview(){
+  if(previewPolyline){map.removeLayer(previewPolyline);previewPolyline=null;}
+}
+function updateCarOnMap(lat,lon){
+  currentCarLat=lat; currentCarLon=lon;
+  if(!carMarker){
+    carMarker=L.marker([lat,lon],{icon:makeCarIcon(),zIndexOffset:1000}).addTo(map);
+  } else {
+    carMarker.setLatLng([lat,lon]);
+  }
+  map.panTo([lat,lon],{animate:true,duration:0.1,noMoveStart:true});
+}
+function updateDestOnMap(lat,lon){
+  if(!destMarker){
+    destMarker=L.marker([lat,lon],{icon:makeDestIcon(),zIndexOffset:500}).addTo(map);
+  } else {
+    destMarker.setLatLng([lat,lon]);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCREEN NAV
+// ═══════════════════════════════════════════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>{s.classList.remove('active');s.style.display='none';});
+  const el=document.getElementById(id);
+  if(el){el.style.display='flex';el.classList.add('active');}
+  if(id==='s-ride'&&map) setTimeout(()=>map.invalidateSize(),50);
+}
+function showLoading(text='Loading...'){
+  setEl('loading-text',text);
+  showEl('loading-overlay');
+  document.getElementById('loading-overlay').classList.add('show');
+}
+function hideLoading(){
+  const el=document.getElementById('loading-overlay');
+  if(el){el.classList.remove('show');el.style.display='none';}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADDRESS AUTOCOMPLETE
+// ═══════════════════════════════════════════════════════════════════════════
+function setupAutocomplete(inputId,suggId,timeoutVar,setter){
+  const input=document.getElementById(inputId);
+  const sugg=document.getElementById(suggId);
+  let timer=null;
+  input.addEventListener('input',()=>{
+    clearTimeout(timer);
+    const q=input.value.trim();
+    if(q.length<3){sugg.style.display='none';return;}
+    timer=setTimeout(async()=>{
+      try{
+        const results=await nominatimSearch(q);
+        sugg.innerHTML='';
+        if(!results.length){sugg.style.display='none';return;}
+        results.slice(0,5).forEach(r=>{
+          const d=document.createElement('div');
+          d.className='suggestion-item';
+          d.textContent=r.display_name;
+          d.onclick=()=>{
+            input.value=r.display_name;
+            setter({lat:parseFloat(r.lat),lon:parseFloat(r.lon),display:r.display_name});
+            sugg.style.display='none';
+          };
+          sugg.appendChild(d);
+        });
+        sugg.style.display='block';
+      }catch(e){sugg.style.display='none';}
+    },450);
+  });
+  document.addEventListener('click',e=>{if(!sugg.contains(e.target)&&e.target!==input)sugg.style.display='none';});
+}
+
+let selectedPickup=null, selectedDest=null;
+setupAutocomplete('pickup-input','pickup-sugg',null,v=>{selectedPickup=v;});
+setupAutocomplete('dest-input','dest-sugg',null,v=>{selectedDest=v;});
+
+// Smart quick-fill: fills pickup first if empty, otherwise destination
+function _smartFill(addr, label){
+  const pu=document.getElementById('pickup-input');
+  const de=document.getElementById('dest-input');
+  if(!pu.value.trim()){
+    // Fill pickup
+    pu.value=addr; selectedPickup=null;
+    // Flash blue border
+    pu.closest('.search-pill').style.borderColor='var(--blue)';
+    setTimeout(()=>pu.closest('.search-pill').style.borderColor='',900);
+  } else {
+    // Fill destination
+    de.value=addr; selectedDest=null;
+    de.closest('.search-pill').style.borderColor='var(--teal)';
+    setTimeout(()=>de.closest('.search-pill').style.borderColor='',900);
+    // Scroll down to show the Start button
+    const body=document.querySelector('.setup-body');
+    if(body) setTimeout(()=>body.scrollTop=body.scrollHeight,100);
+  }
+}
+function quickFill(name, addr){ _smartFill(addr, name); }
+function quickFillDest(addr){ _smartFill(addr, addr.split(',')[0]); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// START RIDE
+// ═══════════════════════════════════════════════════════════════════════════
+async function handleStart(){
+  const btn=document.getElementById('start-btn');
+  const errEl=document.getElementById('setup-error');
+  const loadEl=document.getElementById('setup-loading');
+  errEl.textContent='';
+
+  btn.disabled=true; loadEl.style.display='block'; loadEl.textContent='Looking up addresses...';
+
+  // Geocode pickup if not already selected from dropdown
+  if(!selectedPickup){
+    const q=document.getElementById('pickup-input').value.trim();
+    if(!q){errEl.textContent='Please enter a pickup address.';btn.disabled=false;loadEl.style.display='none';return;}
+    try{
+      const r=await nominatimSearch(q);
+      if(!r||!r.length){errEl.textContent='Pickup address not found — try adding a city name.';btn.disabled=false;loadEl.style.display='none';return;}
+      selectedPickup={lat:parseFloat(r[0].lat),lon:parseFloat(r[0].lon),display:r[0].display_name};
+    }catch(e){
+      errEl.textContent='Network error looking up pickup. Check your connection and try again.';
+      btn.disabled=false;loadEl.style.display='none';return;
+    }
+  }
+
+  // Geocode destination if not already selected from dropdown
+  if(!selectedDest){
+    const q=document.getElementById('dest-input').value.trim();
+    if(!q){errEl.textContent='Please enter a destination.';btn.disabled=false;loadEl.style.display='none';return;}
+    try{
+      const r=await nominatimSearch(q);
+      if(!r||!r.length){errEl.textContent='Destination not found — try adding a city name.';btn.disabled=false;loadEl.style.display='none';return;}
+      selectedDest={lat:parseFloat(r[0].lat),lon:parseFloat(r[0].lon),display:r[0].display_name};
+    }catch(e){
+      errEl.textContent='Network error looking up destination. Check your connection and try again.';
+      btn.disabled=false;loadEl.style.display='none';return;
+    }
+  }
+
+  loadEl.textContent='Fetching route...';
+  try{
+    const route=await getRoute(selectedPickup.lat,selectedPickup.lon,selectedDest.lat,selectedDest.lon);
+    pickupCoords={lat:selectedPickup.lat,lon:selectedPickup.lon};
+    destCoords={lat:selectedDest.lat,lon:selectedDest.lon};
+    currentDestName=selectedDest.display.split(',')[0];
+    currentDestAddr=selectedDest.display.split(',').slice(1,3).join(',').trim();
+    totalDuration=route.duration;
+    totalDistance=route.distance;
+    routeCoords=route.coords;
+    routeIdx=0;
+    btn.disabled=false; loadEl.style.display='none';
+    showConfirm(selectedPickup.display, selectedDest.display, route.distance, route.duration);
+  }catch(e){
+    errEl.textContent='Could not find a driving route between these addresses. Try different locations.';
+    btn.disabled=false; loadEl.style.display='none';
+  }
+}
+
+// ── Confirm screen ──────────────────────────────────────────────────────────
+let confirmMap=null, confirmLayers=[];
+function showConfirm(pickupDisplay,destDisplay,distance,duration){
+  setEl('cr-pickup', pickupDisplay.split(',').slice(0,2).join(','));
+  setEl('cr-dest',   destDisplay.split(',').slice(0,2).join(','));
+  setEl('cr-dist',   fmtDist(distance));
+  setEl('cr-eta',    fmtSecAsMin(duration));
+  showScreen('s-confirm');
+  setTimeout(()=>{
+    if(!confirmMap){
+      confirmMap=L.map('confirm-map',{zoomControl:false,attributionControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,touchZoom:false});
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:18}).addTo(confirmMap);
+    }
+    // Clear previous layers
+    confirmLayers.forEach(l=>confirmMap.removeLayer(l)); confirmLayers=[];
+    const poly=L.polyline(routeCoords,{color:'#1A73E8',weight:4,opacity:.85}).addTo(confirmMap);
+    const mA=L.marker(routeCoords[0],{icon:L.divIcon({html:'<div style="background:#8ab4f8;width:10px;height:10px;border-radius:50%;border:2px solid #fff;"></div>',iconSize:[10,10],iconAnchor:[5,5],className:''})}).addTo(confirmMap);
+    const mB=L.marker(routeCoords[routeCoords.length-1],{icon:L.divIcon({html:'<div style="background:#00BFA5;width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>',iconSize:[12,12],iconAnchor:[6,6],className:''})}).addTo(confirmMap);
+    confirmLayers=[poly,mA,mB];
+    confirmMap.fitBounds(poly.getBounds(),{padding:[24,24]});
+    confirmMap.invalidateSize();
+  },60);
+}
+function beginRide(){
+  startRide(); // startRide calls showScreen internally
+}
+
+function startRide(){
+  showScreen('s-ride');
+  // Init map
+  if(!map) initMap(pickupCoords.lat,pickupCoords.lon);
+  else setTimeout(()=>map.invalidateSize(),80);
+
+  // Draw route
+  drawRouteOnMap(routeCoords,'#1A73E880',3);
+  updateDestOnMap(destCoords.lat,destCoords.lon);
+  updateCarOnMap(routeCoords[0][0],routeCoords[0][1]);
+  map.fitBounds(routeCoords.map(c=>L.latLng(c[0],c[1])),{padding:[50,50]});
+
+  // Update UI
+  updateDestUI();
+  document.getElementById('enroute-panel').style.display='block';
+  document.getElementById('arrived-panel').style.display='none';
+  document.getElementById('emergency-banner').style.display='none';
+  resetProgress();
+  dangerActive=false;
+  // Reset unsafe drop-off button (only unlocks when approaching)
+  const ub=document.getElementById('unsafe-btn');
+  if(ub){ ub.style.opacity='0.35'; ub.style.pointerEvents='none'; }
+  currentPhase='enroute';
+
+  // Start animation
+  startAnim();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANIMATION
+// ═══════════════════════════════════════════════════════════════════════════
+function setSpeed(s){
+  animSpeed=s;
+  document.querySelectorAll('.speed-btn').forEach(b=>b.classList.remove('active'));
+  const labels={1:'1×',2:'2×',5:'5×',10:'10×'};
+  document.querySelectorAll('.speed-btn').forEach(b=>{if(b.textContent===labels[s])b.classList.add('active');});
+  if(animTimer){stopAnim();startAnim();}
+}
+function getInterval(){
+  // Aim for ~60s total at 1× regardless of route length
+  const base=Math.max(50,Math.floor(60000/routeCoords.length));
+  return Math.max(30,Math.floor(base/animSpeed));
+}
+function startAnim(){
+  stopAnim();
+  animTimer=setInterval(tickAnim,getInterval());
+}
+function stopAnim(){
+  if(animTimer){clearInterval(animTimer);animTimer=null;}
+}
+function tickAnim(){
+  if(routeIdx>=routeCoords.length-1){
+    stopAnim();
+    setPhase('arrived');
+    return;
+  }
+  routeIdx++;
+  const [lat,lon]=routeCoords[routeIdx];
+  updateCarOnMap(lat,lon);
+  // Trim the route polyline to only show the remaining path (travelled section disappears)
+  if(routePolyline){
+    routePolyline.setLatLngs(routeCoords.slice(routeIdx));
+  }
+  const prog=routeIdx/(routeCoords.length-1);
+  setProgress(prog);
+  // ETA
+  const remaining=totalDuration*(1-prog);
+  setEl('eta-chip',fmtSecAsMin(remaining));
+  // Phase transitions
+  if(currentPhase==='enroute'&&prog>=0.75) setPhase('approaching');
+}
+let _lastProgress=0;
+function setProgress(p){
+  // Progress bar never goes backwards
+  const clamped=Math.max(_lastProgress,Math.min(1,p));
+  _lastProgress=clamped;
+  const el=document.getElementById('prog-fill');
+  if(el) el.style.width=(clamped*100).toFixed(1)+'%';
+}
+function resetProgress(){
+  _lastProgress=0;
+  const el=document.getElementById('prog-fill');
+  if(el) el.style.width='0%';
+}
+function setPhase(phase){
+  currentPhase=phase;
+  if(phase==='approaching'){
+    // Unlock the Unsafe Drop-Off button — passenger is now near enough to care about drop-off location
+    const ub=document.getElementById('unsafe-btn');
+    if(ub){ ub.style.opacity='1'; ub.style.pointerEvents=''; }
+  } else if(phase==='arrived'){
+    stopAnim();
+    // Snap car to destination
+    updateCarOnMap(destCoords.lat,destCoords.lon);
+    setProgress(1);
+    map.setView([destCoords.lat,destCoords.lon],16,{animate:true,duration:0.5});
+    document.getElementById('enroute-panel').style.display='none';
+    document.getElementById('arrived-panel').style.display='block';
+    setEl('arrived-dest-name',currentDestName);
+    // Auto-show survey after 8s
+    setTimeout(()=>{ if(currentPhase==='arrived') showSurvey(); },8000);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEST UI UPDATE
+// ═══════════════════════════════════════════════════════════════════════════
+function updateDestUI(){
+  setEl('dest-name-el',currentDestName);
+  setEl('dest-addr-el',currentDestAddr);
+  setEl('arrived-dest-name',currentDestName);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// I'M IN DANGER
+// ═══════════════════════════════════════════════════════════════════════════
+// Kept for compat but not called anymore
+function showSOSConfirm(){ triggerDanger(); }
+function cancelSOS(){ clearDangerCancelTimer(); cancelDangerOverlay(); }
+
+// New: go directly to agent screen, 5s cancel bar at bottom
+let _dangerCancelTimer=null;
+let _dangerAborted=false;
+function triggerDanger(){
+  stopAnim();
+  // Open danger overlay immediately
+  const ov=document.getElementById('danger-overlay');
+  ov.style.display='flex'; ov.classList.add('show');
+  dangerActive=false; // not yet committed — still in cancel window
+
+  // Reset timeline & agent card
+  ['tl1','tl2','tl3'].forEach(id=>document.getElementById(id).className='tl-dot');
+  ['tl1-label','tl2-label','tl3-label'].forEach(id=>document.getElementById(id).className='tl-label');
+  document.getElementById('agent-status').textContent='Connecting to Safety Agent...';
+  document.getElementById('police-info-card').style.display='none';
+
+  // Show cancel countdown bar, hide both bottom rows
+  document.getElementById('danger-cancel-btn').style.display='block';
+  document.getElementById('danger-cancel-plain').style.display='none';
+  document.getElementById('confirm-safe-row').style.display='none';
+  setEl('danger-cancel-secs','5');
+  const bar=document.getElementById('danger-cancel-bar');
+  // Reset bar to full width with no transition, then animate to 0 over exactly 5s
+  bar.style.transition='none'; bar.style.width='100%';
+  let cSecs=5;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    bar.style.transition='width 5s linear'; bar.style.width='0%';
+  }));
+  _dangerCancelTimer=setInterval(()=>{
+    cSecs--;
+    setEl('danger-cancel-secs',String(Math.max(0,cSecs)));
+    if(cSecs<=0){
+      clearDangerCancelTimer();
+      // Window closed — commit danger, hide countdown btn, show plain cancel
+      dangerActive=true;
+      document.getElementById('danger-cancel-btn').style.display='none';
+      document.getElementById('danger-cancel-plain').style.display='flex';
+    }
+  },1000);
+
+  // Start the agent response sequence immediately (async, has its own delays)
+  _runDangerSequence();
+}
+
+function clearDangerCancelTimer(){
+  if(_dangerCancelTimer){clearInterval(_dangerCancelTimer);_dangerCancelTimer=null;}
+}
+
+function cancelDangerEarly(){
+  // User tapped cancel during the 5s window
+  _dangerAborted=true; // stop async sequence mid-flight
+  clearDangerCancelTimer();
+  hideLoading();
+  document.getElementById('danger-overlay').style.display='none';
+  document.getElementById('danger-overlay').classList.remove('show');
+  if(!animTimer&&routeCoords.length>0&&routeIdx<routeCoords.length-1) startAnim();
+}
+
+async function activateDanger(){ _runDangerSequence(); } // legacy alias
+async function _runDangerSequence(){
+  _dangerAborted=false;
+  const ov=document.getElementById('danger-overlay'); // always define ov here
+
+  // Step 1: agent connects (~2s)
+  await delay(1800);
+  if(_dangerAborted){hideLoading();return;}
+  activateTL('tl1');
+  document.getElementById('agent-status').textContent='Connected — Sarah is with you';
+
+  // Step 2: find police station (~2s)
+  await delay(1500);
+  if(_dangerAborted){hideLoading();return;}
+  activateTL('tl2');
+  document.getElementById('agent-status').textContent='Locating nearest police station...';
+  showLoading('Finding nearest police station...');
+
+  let policePlace=null;
+  try{
+    const results=await findPoliceStation(currentCarLat,currentCarLon);
+    if(_dangerAborted){hideLoading();return;}
+    if(results.length){
+      const p=results[0];
+      policePlace={
+        lat:p.center?p.center.lat:p.lat,
+        lon:p.center?p.center.lon:p.lon,
+        name:p.tags&&p.tags.name?p.tags.name:'Police Station',
+        addr:p.tags&&p.tags['addr:street']?p.tags['addr:street']:'Nearest station'
+      };
+    }
+  }catch(e){}
+
+  if(!policePlace){
+    policePlace={lat:currentCarLat+0.01,lon:currentCarLon+0.005,name:'Nearest Police Station',addr:'Emergency routing active'};
+  }
+
+  // Show police info card inside overlay (loading still visible — no flash)
+  setEl('police-name',policePlace.name);
+  setEl('police-addr',policePlace.addr);
+  document.getElementById('police-info-card').style.display='block';
+
+  // Step 3: reroute — update loading text in place (no hide/show = no flash)
+  await delay(800);
+  if(_dangerAborted){hideLoading();return;}
+  activateTL('tl3');
+  setEl('loading-text','Rerouting to police station...');
+
+  try{
+    const r=await getRoute(currentCarLat,currentCarLon,policePlace.lat,policePlace.lon);
+    hideLoading();
+    if(_dangerAborted) return;
+    await delay(600);
+    // Save original destination before rerouting, so Cancel can restore it
+    _savedDestCoords={...destCoords};
+    _savedDestName=currentDestName;
+    _savedDestAddr=currentDestAddr;
+    _savedRouteCoords=[...routeCoords];
+    _savedRouteIdx=routeIdx;
+    _savedTotalDuration=totalDuration;
+    _savedTotalDistance=totalDistance;
+    // Reroute car — this updates currentDestName, currentDestAddr, and calls updateDestUI()
+    // so the bottom sheet destination will show the police station
+    applyReroute(r.coords,r.duration,r.distance,policePlace.lat,policePlace.lon,policePlace.name,policePlace.addr,'🚔');
+    // Show emergency banner on map
+    setEl('emg-dest',policePlace.name+' · '+policePlace.addr);
+    document.getElementById('emergency-banner').style.display='flex';
+  }catch(e){hideLoading();}
+
+  if(_dangerAborted) return;
+  // Close danger overlay and resume driving
+  await delay(1500);
+  ov.style.display='none'; ov.classList.remove('show');
+  startAnim();
+}
+
+function activateTL(id){
+  const prev={'tl2':'tl1','tl3':'tl2'}[id];
+  if(prev){document.getElementById(prev).className='tl-dot done';document.getElementById(prev+'-label').className='tl-label done';}
+  document.getElementById(id).className='tl-dot active';
+  document.getElementById(id+'-label').className='tl-label active';
+}
+
+function cancelDangerOverlay(){
+  _dangerAborted=true; // stop async sequence mid-flight
+  clearDangerCancelTimer();
+  hideLoading();
+  dangerTimers.forEach(clearTimeout);dangerTimers=[];
+  document.getElementById('confirm-safe-row').style.display='none';
+  document.getElementById('danger-overlay').style.display='none';
+  document.getElementById('danger-overlay').classList.remove('show');
+  if(dangerActive){
+    dangerActive=false;
+    document.getElementById('emergency-banner').style.display='none';
+  }
+  if(!animTimer&&routeCoords.length>0&&routeIdx<routeCoords.length-1) startAnim();
+}
+
+function cancelEmergency(){
+  // Stop car
+  stopAnim();
+  // Hide banner
+  document.getElementById('emergency-banner').style.display='none';
+  dangerActive=false;
+
+  // Restore original destination if we have one saved
+  if(_savedDestCoords && _savedDestName){
+    routeCoords=_savedRouteCoords;
+    routeIdx=_savedRouteIdx;
+    totalDuration=_savedTotalDuration;
+    totalDistance=_savedTotalDistance;
+    destCoords=_savedDestCoords;
+    currentDestName=_savedDestName;
+    currentDestAddr=_savedDestAddr;
+    updateDestUI();
+    updateDestOnMap(_savedDestCoords.lat,_savedDestCoords.lon);
+    if(routeCoords.length>0) drawRouteOnMap(routeCoords.slice(routeIdx),'#1A73E880',3);
+    // Reset saved state
+    _savedDestCoords=null; _savedDestName=''; _savedDestAddr='';
+    _savedRouteCoords=[]; _savedRouteIdx=0;
+  }
+
+  // Reopen the danger overlay so user is back with the safety agent
+  const ov=document.getElementById('danger-overlay');
+  ov.style.display='flex'; ov.classList.add('show');
+  // Show committed state — agent connected, hide countdown, hide plain cancel
+  document.getElementById('danger-cancel-btn').style.display='none';
+  document.getElementById('danger-cancel-plain').style.display='none';
+  // Show only "I'm Safe" button
+  document.getElementById('confirm-safe-row').style.display='block';
+  // Timeline: agent connected
+  activateTL('tl1');
+  document.getElementById('agent-status').textContent='Connected — Sarah is with you';
+  document.getElementById('police-info-card').style.display='none';
+  dangerActive=true;
+}
+
+function confirmSafe(){
+  // Close danger overlay
+  _dangerAborted=true;
+  clearDangerCancelTimer();
+  hideLoading();
+  dangerActive=false;
+  document.getElementById('confirm-safe-row').style.display='none';
+  const ov=document.getElementById('danger-overlay');
+  ov.style.display='none'; ov.classList.remove('show');
+  document.getElementById('emergency-banner').style.display='none';
+
+  // Restore original destination if we have one saved
+  if(_savedDestCoords && _savedDestName){
+    routeCoords=_savedRouteCoords;
+    routeIdx=_savedRouteIdx;
+    totalDuration=_savedTotalDuration;
+    totalDistance=_savedTotalDistance;
+    destCoords=_savedDestCoords;
+    currentDestName=_savedDestName;
+    currentDestAddr=_savedDestAddr;
+    updateDestUI();
+    updateDestOnMap(_savedDestCoords.lat,_savedDestCoords.lon);
+    if(routeCoords.length>0) drawRouteOnMap(routeCoords.slice(routeIdx),'#1A73E880',3);
+    _savedDestCoords=null; _savedDestName=''; _savedDestAddr='';
+    _savedRouteCoords=[]; _savedRouteIdx=0;
+  }
+
+  // Resume driving to original destination
+  currentPhase='enroute';
+  startAnim();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UNSAFE DROP-OFF
+// ═══════════════════════════════════════════════════════════════════════════
+async function showUnsafeDropoff(){
+  placesMode='unsafe';
+  stopAnim();
+  showLoading('Finding safe drop-off locations...');
+  try{
+    // Search near destination
+    const places=await findSafePlaces(destCoords.lat,destCoords.lon,1500);
+    hideLoading();
+    renderPlaceList(places,'unsafe');
+  }catch(e){
+    hideLoading();
+    renderPlaceList([],'unsafe');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RE-ROUTE (address search input)
+// ═══════════════════════════════════════════════════════════════════════════
+function showRerouteList(){
+  stopAnim();
+  const ov=document.getElementById('reroute-search');
+  ov.classList.add('show'); ov.style.display='flex';
+  const inp=document.getElementById('reroute-input');
+  inp.value='';
+  document.getElementById('reroute-sugg').style.display='none';
+  setTimeout(()=>inp.focus(),100);
+}
+function hideRerouteSearch(){
+  const ov=document.getElementById('reroute-search');
+  ov.classList.remove('show'); ov.style.display='none';
+  document.getElementById('reroute-sugg').style.display='none';
+  if(routeIdx<routeCoords.length-1) startAnim();
+}
+
+// Wire reroute-input autocomplete once DOM ready
+document.addEventListener('DOMContentLoaded',()=>{
+  const inp=document.getElementById('reroute-input');
+  const sugg=document.getElementById('reroute-sugg');
+  let rt=null;
+  inp.addEventListener('input',()=>{
+    clearTimeout(rt);
+    const q=inp.value.trim();
+    if(q.length<3){sugg.style.display='none';return;}
+    rt=setTimeout(async()=>{
+      try{
+        const results=await nominatimSearch(q);
+        sugg.innerHTML='';
+        if(!results.length){sugg.style.display='none';return;}
+        results.slice(0,5).forEach(r=>{
+          const d=document.createElement('div');
+          d.className='rs-sugg-item';
+          d.textContent=r.display_name;
+          d.onclick=async()=>{
+            sugg.style.display='none';
+            inp.value=r.display_name;
+            // Hide search panel and get route
+            const ov=document.getElementById('reroute-search');
+            ov.classList.remove('show'); ov.style.display='none';
+            showLoading('Calculating new route...');
+            try{
+              const fromLat=currentCarLat||pickupCoords.lat;
+              const fromLon=currentCarLon||pickupCoords.lon;
+              const route=await getRoute(fromLat,fromLon,parseFloat(r.lat),parseFloat(r.lon));
+              hideLoading();
+              const name=r.display_name.split(',')[0];
+              const addr=r.display_name.split(',').slice(1,3).join(',').trim();
+              pendingReroute={coords:route.coords,duration:route.duration,distance:route.distance,lat:parseFloat(r.lat),lon:parseFloat(r.lon),name,addr,icon:'📍'};
+              drawPreviewOnMap(route.coords);
+              updateDestOnMap(parseFloat(r.lat),parseFloat(r.lon));
+              setEl('rc-title','Rerouting to '+name);
+              setEl('rc-addr',addr);
+              setEl('rc-dist',fmtDist(route.distance));
+              setEl('rc-eta',fmtSecAsMin(route.duration));
+              const rc=document.getElementById('reroute-confirm');
+              rc.classList.add('show'); rc.style.display='flex';
+            }catch(e){
+              hideLoading();
+              alert('Could not find a route to that location.');
+              if(routeIdx<routeCoords.length-1) startAnim();
+            }
+          };
+          sugg.appendChild(d);
+        });
+        sugg.style.display='block';
+      }catch(e){sugg.style.display='none';}
+    },400);
+  });
+  document.addEventListener('click',e=>{if(!sugg.contains(e.target)&&e.target!==inp)sugg.style.display='none';});
+});
+
+function renderPlaceList(elements,mode){
+  const ov=document.getElementById('places-overlay');
+  const list=document.getElementById('places-list');
+  list.innerHTML='';
+
+  setEl('places-title',mode==='unsafe'?'Safe Drop-Off Locations':'Choose New Destination');
+  setEl('places-sub',mode==='unsafe'?'Tap a location near your destination':'Tap a location to reroute there');
+
+  // Filter + sort by distance
+  const refLat=mode==='unsafe'?destCoords.lat:currentCarLat||destCoords.lat;
+  const refLon=mode==='unsafe'?destCoords.lon:currentCarLon||destCoords.lon;
+
+  // Handle both Overpass elements (with .tags) and nominatim-direct objects (with .lat/.lon directly)
+  const items=elements
+    .map(e=>{
+      // Nominatim-direct objects (from fallback) already have flat structure
+      if(!e.type && e.lat && e.lon && e.tags){
+        const type=placeTypeFromTags(e.tags);
+        const name=e.tags.name||(AMENITY_LABEL[type]||'Safe Location');
+        return {lat:e.lat,lon:e.lon,name,type,dist:haversine(refLat,refLon,e.lat,e.lon)};
+      }
+      // Overpass elements
+      if(!e.tags) return null;
+      const lat=e.center?e.center.lat:e.lat;
+      const lon=e.center?e.center.lon:e.lon;
+      if(!lat||!lon) return null;
+      const type=placeTypeFromTags(e.tags);
+      const name=e.tags.name||e.tags.brand||(AMENITY_LABEL[type]||'Safe Location');
+      return {lat,lon,name,type,dist:haversine(refLat,refLon,lat,lon)};
+    })
+    .filter(Boolean)
+    .sort((a,b)=>a.dist-b.dist)
+    // Remove duplicates by name
+    .filter((item,i,arr)=>arr.findIndex(x=>x.name===item.name)<i?false:true)
+    .slice(0,6);
+
+  if(!items.length){
+    list.innerHTML='<div style="color:var(--t2);font-size:14px;padding:20px 0;text-align:center;">No results found nearby.<br>Try a shorter destination address or move closer to an urban area.</div>';
+    ov.classList.add('show');ov.style.display='flex';return;
+  }
+
+  items.forEach(item=>{
+    const card=document.createElement('div');
+    card.className='place-card';
+    const ico=AMENITY_ICON[item.type]||AMENITY_ICON.default;
+    const lbl=AMENITY_LABEL[item.type]||AMENITY_LABEL.default;
+    card.innerHTML=`<span class="place-ico">${ico}</span><div class="place-info"><div class="place-name">${item.name}</div><div class="place-type">${lbl}</div></div><div class="place-dist">${fmtDist(item.dist)}</div>`;
+    card.onclick=()=>selectPlace(item);
+    list.appendChild(card);
+  });
+
+  ov.classList.add('show');ov.style.display='flex';
+}
+
+function hidePlaces(){
+  const ov=document.getElementById('places-overlay');
+  ov.classList.remove('show');ov.style.display='none';
+  clearPreview();
+  if(routeIdx<routeCoords.length-1) startAnim();
+}
+
+async function selectPlace(item){
+  // Hide places list
+  const ov=document.getElementById('places-overlay');
+  ov.classList.remove('show');ov.style.display='none';
+
+  showLoading('Calculating new route...');
+  try{
+    const fromLat=currentCarLat||pickupCoords.lat;
+    const fromLon=currentCarLon||pickupCoords.lon;
+    const r=await getRoute(fromLat,fromLon,item.lat,item.lon);
+    hideLoading();
+    pendingReroute={coords:r.coords,duration:r.duration,distance:r.distance,lat:item.lat,lon:item.lon,name:item.name,addr:AMENITY_LABEL[item.type]||item.type,icon:AMENITY_ICON[item.type]||'📍'};
+    // Draw preview
+    drawPreviewOnMap(r.coords);
+    updateDestOnMap(item.lat,item.lon);
+    // Show confirm panel
+    setEl('rc-title','Rerouting to '+item.name);
+    setEl('rc-addr',AMENITY_LABEL[item.type]||item.type);
+    setEl('rc-dist',fmtDist(r.distance));
+    setEl('rc-eta',fmtSecAsMin(r.duration));
+    const rc=document.getElementById('reroute-confirm');
+    rc.classList.add('show');rc.style.display='flex';
+  }catch(e){
+    hideLoading();
+    alert('Could not find a route to that location.');
+    if(routeIdx<routeCoords.length-1) startAnim();
+  }
+}
+
+function cancelRerouteConfirm(){
+  const rc=document.getElementById('reroute-confirm');
+  rc.classList.remove('show');rc.style.display='none';
+  clearPreview();
+  pendingReroute=null;
+  // Restore original dest marker
+  updateDestOnMap(destCoords.lat,destCoords.lon);
+  if(routeIdx<routeCoords.length-1) startAnim();
+}
+
+function confirmReroute(){
+  if(!pendingReroute) return;
+  const rc=document.getElementById('reroute-confirm');
+  rc.classList.remove('show');rc.style.display='none';
+  clearPreview();
+  applyReroute(pendingReroute.coords,pendingReroute.duration,pendingReroute.distance,pendingReroute.lat,pendingReroute.lon,pendingReroute.name,pendingReroute.addr,pendingReroute.icon);
+  pendingReroute=null;
+  startAnim();
+}
+
+function applyReroute(coords,duration,distance,lat,lon,name,addr,icon){
+  // Preserve current progress so bar never goes backwards
+  const savedProg=_lastProgress;
+  routeCoords=coords; routeIdx=0;
+  totalDuration=duration; totalDistance=distance;
+  destCoords={lat,lon};
+  currentDestName=name;
+  currentDestAddr=addr;
+  updateDestUI();
+  updateDestOnMap(lat,lon);
+  drawRouteOnMap(coords,'#1A73E880',3);
+  // Restore saved progress so bar doesn't jump back
+  _lastProgress=savedProg;
+  currentPhase='enroute';
+  // Update dest icon
+  const di=document.getElementById('dest-icon-el');
+  if(di) di.textContent=icon||'📍';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RETURN TO CAR / UNLOCK DOOR
+// ═══════════════════════════════════════════════════════════════════════════
+let unlockTimer=null;
+
+function showSaferDropoffFromReturn(){
+  // User is at destination but feels unsafe — find nearby safer drop-off
+  // Re-use the arrived coords as the search center
+  placesMode='unsafe';
+  showLoading('Finding safe locations near you...');
+  const searchLat=destCoords.lat, searchLon=destCoords.lon;
+  findSafePlaces(searchLat, searchLon, 2000).then(places=>{
+    hideLoading();
+    renderPlaceList(places,'unsafe');
+  }).catch(()=>{
+    hideLoading();
+    renderPlaceList([],'unsafe');
+  });
+}
+
+function unlockCarDoor(){
+  document.getElementById('return-car-btn').style.display='none';
+  document.getElementById('safe-window-row').style.display='none';
+  const row=document.getElementById('unlock-row');
+  row.style.display='flex';
+  document.getElementById('lock-door-btn').style.display='block';
+  // Reset pulse & status
+  setEl('unlock-status-text','Door Unlocked');
+  setEl('unlock-timer-text','Tap "I\'m in" once you\'ve boarded');
+  document.getElementById('unlock-pulse').style.animation='pulse-green 1.2s infinite';
+  document.getElementById('unlock-pulse').style.background='var(--teal)';
+  // 30s auto-lock countdown
+  let secs=30;
+  clearInterval(unlockTimer);
+  unlockTimer=setInterval(()=>{
+    secs--;
+    setEl('unlock-timer-text','Auto-lock in '+secs+'s — or tap "I\'m in" to lock now');
+    if(secs<=0){ clearInterval(unlockTimer); _autoLock(); }
+  },1000);
+}
+
+function _autoLock(){
+  // Door auto-locked — change phase so auto-survey timer won't fire
+  currentPhase='boarding';
+  setEl('unlock-status-text','Door Locked');
+  setEl('unlock-timer-text','Auto-locked');
+  document.getElementById('unlock-pulse').style.animation='none';
+  document.getElementById('unlock-pulse').style.background='var(--t3)';
+  document.getElementById('lock-door-btn').style.display='none';
+  setTimeout(()=>{
+    document.getElementById('unlock-row').style.display='none';
+    document.getElementById('return-car-btn').style.display='';
+    document.getElementById('safe-window-row').style.display='flex';
+  },2000);
+}
+
+function lockDoorNow(){
+  // Passenger manually confirmed they're in — lock door immediately
+  clearInterval(unlockTimer);
+  // Change phase immediately so the 8s auto-survey timer doesn't fire
+  currentPhase='boarding';
+  document.getElementById('lock-door-btn').style.display='none';
+  setEl('unlock-status-text','Door Locked 🔒');
+  setEl('unlock-timer-text','Welcome back! You\'re safely inside.');
+  document.getElementById('unlock-pulse').style.animation='none';
+  document.getElementById('unlock-pulse').style.background='var(--teal)';
+  // After 1.5s show the safe drop-off prompt
+  setTimeout(()=>{
+    document.getElementById('unlock-row').style.display='none';
+    document.getElementById('arrived-panel').style.display='none';
+    const prompt=document.getElementById('safe-dropoff-prompt');
+    prompt.style.display='flex';
+  },1500);
+}
+
+function dismissSafeDropoffPrompt(){
+  document.getElementById('safe-dropoff-prompt').style.display='none';
+  document.getElementById('arrived-panel').style.display='block';
+  // Reset for next unlock
+  document.getElementById('return-car-btn').style.display='';
+  document.getElementById('safe-window-row').style.display='flex';
+}
+
+function acceptSafeDropoff(){
+  document.getElementById('safe-dropoff-prompt').style.display='none';
+  // Switch back to ride / en-route state so the car can move again after selection
+  document.getElementById('arrived-panel').style.display='none';
+  document.getElementById('enroute-panel').style.display='block';
+  document.getElementById('return-car-btn').style.display='';
+  document.getElementById('safe-window-row').style.display='flex';
+  currentPhase='enroute';
+  // Make sure car position is at current dest so route starts from here
+  if(!currentCarLat || !currentCarLon){
+    currentCarLat=destCoords.lat;
+    currentCarLon=destCoords.lon;
+  }
+  // Show the safe places picker — selecting a place calls selectPlace → confirmReroute → startAnim
+  placesMode='unsafe';
+  showLoading('Finding safe locations nearby...');
+  findSafePlaces(destCoords.lat, destCoords.lon, 2000).then(places=>{
+    hideLoading();
+    // Override renderPlaceList mode label so user understands context
+    renderPlaceList(places,'unsafe');
+    // Patch title to reflect "re-board" context
+    setEl('places-title','Drive Me Somewhere Safer');
+    setEl('places-sub','Choose a nearby safe location — your car will take you there');
+  }).catch(()=>{ hideLoading(); renderPlaceList([],'unsafe'); });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SURVEY
+// ═══════════════════════════════════════════════════════════════════════════
+let starRating=0;
+function showSurvey(){
+  showScreen('s-survey');
+  starRating=0;
+  document.querySelectorAll('.star').forEach(s=>s.classList.remove('lit'));
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('survey-submit').disabled=true;
+}
+function rateStar(v){
+  starRating=v;
+  document.querySelectorAll('.star').forEach(s=>{s.classList.toggle('lit',parseInt(s.dataset.v)<=v);});
+  document.getElementById('survey-submit').disabled=false;
+}
+function toggleChip(el){el.classList.toggle('selected');}
+function toggleChipSingle(el,group){
+  const container=el.closest('.chips');
+  if(container) container.querySelectorAll('.chip[data-group]').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function submitSurvey(){showScreen('s-thanks');}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESET
+// ═══════════════════════════════════════════════════════════════════════════
+function resetApp(){
+  stopAnim();
+  dangerTimers.forEach(clearTimeout);dangerTimers=[];
+  clearInterval(sosTimer);sosTimer=null;
+  if(routePolyline&&map){map.removeLayer(routePolyline);routePolyline=null;}
+  if(previewPolyline&&map){map.removeLayer(previewPolyline);previewPolyline=null;}
+  if(carMarker&&map){map.removeLayer(carMarker);carMarker=null;}
+  if(destMarker&&map){map.removeLayer(destMarker);destMarker=null;}
+  if(confirmMap){confirmLayers.forEach(l=>confirmMap.removeLayer(l));confirmLayers=[];}
+  routeCoords=[];routeIdx=0;
+  selectedPickup=null;selectedDest=null;
+  document.getElementById('pickup-input').value='';
+  document.getElementById('dest-input').value='';
+  document.getElementById('setup-error').textContent='';
+  document.getElementById('setup-loading').style.display='none';
+  document.getElementById('start-btn').disabled=false;
+  // Hide all overlays
+  document.querySelectorAll('.overlay').forEach(o=>{o.classList.remove('show');o.style.display='none';});
+  document.getElementById('places-overlay').style.display='none';
+  document.getElementById('reroute-confirm').style.display='none';
+  document.getElementById('reroute-search').style.display='none';
+  document.getElementById('emergency-banner').style.display='none';
+  // Reset unlock/return-to-car state
+  clearInterval(unlockTimer);unlockTimer=null;
+  document.getElementById('unlock-row').style.display='none';
+  document.getElementById('unlock-row').style.flexDirection='column';
+  document.getElementById('lock-door-btn').style.display='block';
+  document.getElementById('safe-dropoff-prompt').style.display='none';
+  _lastProgress=0;
+  document.getElementById('return-car-btn').style.display='';
+  document.getElementById('safe-window-row').style.display='flex';
+  document.getElementById('unlock-pulse').style.animation='pulse-green 1.2s infinite';
+  document.getElementById('unlock-pulse').style.background='var(--teal)';
+  showScreen('s-setup');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+function delay(ms){return new Promise(r=>setTimeout(r,ms));}
+</script>
+</body>
+</html>
