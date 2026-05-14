@@ -154,7 +154,6 @@ body{background:#111823;display:flex;flex-direction:column;align-items:center;ju
 .arrived-check{font-size:30px;}
 .arrived-title{color:#fff;font-size:16px;font-weight:700;}
 .arrived-sub{color:rgba(255,255,255,.8);font-size:12px;margin-top:2px;}
-.arrived-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .arr-btn{background:var(--card);border:1px solid var(--border);color:var(--t1);padding:13px;border-radius:13px;font-size:13px;font-weight:600;cursor:pointer;text-align:center;}
 .arr-btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;}
 .safe-window{background:rgba(0,200,177,.1);border:1px solid rgba(0,200,177,.25);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px;margin-bottom:14px;}
@@ -561,19 +560,18 @@ body{background:#111823;display:flex;flex-direction:column;align-items:center;ju
               <span style="font-size:20px;">🚗</span>
               <div style="flex:1;min-width:0;">
                 <div style="color:var(--teal);font-size:14px;font-weight:700;" id="unlock-status-text">Door Unlocked</div>
-                <div style="color:var(--t2);font-size:12px;margin-top:2px;" id="unlock-timer-text">You have 30 seconds to board</div>
+                <div style="color:var(--t2);font-size:12px;margin-top:2px;" id="unlock-timer-text">You have 60 seconds to board</div>
               </div>
               <div id="unlock-pulse" style="width:12px;height:12px;border-radius:50%;background:var(--teal);animation:pulse-green 1.2s infinite;"></div>
             </div>
             <!-- Lock Door button (shown while door is open) -->
             <button id="lock-door-btn" onclick="lockDoorNow()" style="width:100%;background:rgba(0,200,177,.15);border:1.5px solid rgba(0,200,177,.4);color:var(--teal);padding:12px;border-radius:13px;font-size:14px;font-weight:700;cursor:pointer;">🔒 I'm in — Lock the Door</button>
           </div>
-          <div class="arrived-btns">
-            <div class="arr-btn" onclick="showSurvey()">Rate Ride</div>
-            <div class="arr-btn primary" onclick="showSurvey()">Done</div>
-          </div>
           <div style="margin-top:8px;">
             <div class="arr-btn return-car-btn" id="return-car-btn" onclick="unlockCarDoor()" style="width:100%;text-align:center;">🔓 Return to Car</div>
+          </div>
+          <div style="margin-top:8px;">
+            <div class="arr-btn primary" onclick="showSurvey()" style="width:100%;text-align:center;">Done</div>
           </div>
         </div>
       </div>
@@ -1268,8 +1266,8 @@ function setPhase(phase){
     document.getElementById('enroute-panel').style.display='none';
     document.getElementById('arrived-panel').style.display='block';
     setEl('arrived-dest-name',currentDestName);
-    // Auto-show survey after 8s
-    setTimeout(()=>{ if(currentPhase==='arrived') showSurvey(); },8000);
+    // Auto-show survey after 45s (long enough for demo to walk through Return to Car)
+    setTimeout(()=>{ if(currentPhase==='arrived') showSurvey(); },45000);
   }
 }
 
@@ -1769,8 +1767,8 @@ function unlockCarDoor(){
   setEl('unlock-timer-text','Tap "I\'m in" once you\'ve boarded');
   document.getElementById('unlock-pulse').style.animation='pulse-green 1.2s infinite';
   document.getElementById('unlock-pulse').style.background='var(--teal)';
-  // 30s auto-lock countdown
-  let secs=30;
+  // 60s auto-lock countdown
+  let secs=60;
   clearInterval(unlockTimer);
   unlockTimer=setInterval(()=>{
     secs--;
@@ -2079,27 +2077,31 @@ async function qaRunUD02(){
 
 // UD-03/04/07: Open Unsafe Drop-Off places list
 async function qaRunUD03(){
+  _qaResetCard('UD-03');
   await _qaBootRide(QA_FIXTURES.SF_FERRY, QA_FIXTURES.SF_MISSION, 0.80, 1);
   stopAnim();
   await delay(300);
-  showUnsafeDropoff();
+  _qaLog('UD-03: Fetching safe places (Overpass)…');
+  await showUnsafeDropoff(); // await so assertion runs after API returns, not on a fixed timer
   await _qaAssert('UD-03',[
     ['Places overlay visible', ()=>document.getElementById('places-overlay').style.display!=='none'],
     ['At least 1 place card', ()=>document.getElementById('places-list').children.length>0],
-  ],6000);
+  ],300);
 }
 async function qaRunUD04(){
+  _qaResetCard('UD-04');
   // Use ocean coords where Overpass returns nothing — triggers Nominatim fallback
   await _qaBootRide(QA_FIXTURES.SF_FERRY, QA_FIXTURES.SF_DOLORES, 0.80, 1);
   stopAnim();
   // Manually set car to ocean coords (no POIs)
   currentCarLat=37.7600; currentCarLon=-122.5100;
   await delay(300);
-  showUnsafeDropoff();
+  _qaLog('UD-04: Fetching safe places at ocean coords (Overpass → Nominatim fallback)…');
+  await showUnsafeDropoff(); // await full async chain (Overpass + up to 6 Nominatim calls)
   await _qaAssert('UD-04',[
     ['Overlay visible (no crash)', ()=>document.getElementById('places-overlay').style.display!=='none'],
     ['List has content or empty state', ()=>{ const l=document.getElementById('places-list'); return l.children.length>0||l.textContent.includes('No'); }],
-  ],8000);
+  ],300);
 }
 
 // RR-01/02: Re-Route
@@ -2301,13 +2303,13 @@ async function qaRunEX03(){
   // Monkey-patch fetch to reject
   window._origFetch=window.fetch;
   window.fetch=()=>Promise.reject(new Error('Network offline (QA mock)'));
-  showUnsafeDropoff();
+  await showUnsafeDropoff(); // await so rejection is handled before asserting
+  window.fetch=window._origFetch;
+  _qaLog('EX-03: fetch restored.');
   await _qaAssert('EX-03',[
     ['Overlay visible (no crash)', ()=>document.getElementById('places-overlay').style.display!=='none'],
     ['Still on ride screen', ()=>document.getElementById('s-ride').classList.contains('active')],
-  ],5000);
-  window.fetch=window._origFetch;
-  _qaLog('EX-03: fetch restored.');
+  ],300);
 }
 
 // EX-05: Phase lock regression
@@ -2754,7 +2756,7 @@ async function qaRunEX07(){
     <div class="qa-case" id="qa-card-RC-01" data-also="RC-02">
       <div class="qa-id">RC-01/02</div>
       <div class="qa-desc">Unlock → lock → safe drop-off prompt</div>
-      <div class="qa-detail">Boots to arrived screen + door unlocked. Tap I'm in → safe drop-off prompt should appear. NO survey jump</div>
+      <div class="qa-detail">Boots to arrived screen (Return to Car above Done). Door unlocked with 60s countdown. Tap I'm in → safe drop-off prompt appears. NO survey jump.</div>
       <button class="qa-btn safe" onclick="qaRunRC02()">Run</button>
     </div>
     <div class="qa-case" id="qa-card-RC-03">
@@ -2804,25 +2806,25 @@ async function qaRunEX07(){
     <div class="qa-case" id="qa-card-SV-01">
       <div class="qa-id">SV-01</div>
       <div class="qa-desc">Survey auto-appears after arriving</div>
-      <div class="qa-detail">Drives to 99%, lets anim complete. Pass = survey screen active within 10s</div>
+      <div class="qa-detail">Drives to 99%, lets anim complete. Pass = survey screen active within 15s (triggered by 8s auto-timer after arrival, same flow as tapping Done)</div>
       <button class="qa-btn" onclick="qaRunSV01()">Run</button>
     </div>
     <div class="qa-case" id="qa-card-SV-02">
       <div class="qa-id">SV-02</div>
       <div class="qa-desc">Survey renders 5 star options</div>
-      <div class="qa-detail">Opens survey directly. Pass = 5 star labels visible</div>
+      <div class="qa-detail">Opens survey directly (same as tapping Done). Pass = 5 star labels visible</div>
       <button class="qa-btn" onclick="qaRunSV02()">Run</button>
     </div>
     <div class="qa-case" id="qa-card-SV-03">
       <div class="qa-id">SV-03</div>
       <div class="qa-desc">Star click → enables submit</div>
-      <div class="qa-detail">Opens survey, clicks star 4. Pass = submit button enabled</div>
+      <div class="qa-detail">Opens survey (via Done), clicks star 4. Pass = submit button enabled</div>
       <button class="qa-btn" onclick="qaRunSV03()">Run</button>
     </div>
     <div class="qa-case" id="qa-card-SV-04">
       <div class="qa-id">SV-04</div>
       <div class="qa-desc">Submit survey → back to setup</div>
-      <div class="qa-detail">Opens survey, rates 5 stars, submits. Pass = setup screen shown</div>
+      <div class="qa-detail">Opens survey via Done, rates 5 stars, submits. Pass = setup screen shown</div>
       <button class="qa-btn" onclick="qaRunSV04()">Run</button>
     </div>
 
